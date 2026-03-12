@@ -134,13 +134,13 @@ page 73101 wpVoucherMaintenanceCard
                 UpdatePropagation = Both;
             }
 
-            Part(wpVoucherVendor; wpVoucherVendor)
-            {
-                ApplicationArea = Basic, Suite;
-                Caption = 'Vendor Setup';
-                SubPageLink = "Voucher ID" = field(ID);
-                UpdatePropagation = Both;
-            }
+            // Part(wpVoucherVendor; wpVoucherVendor)
+            // {
+            //     ApplicationArea = Basic, Suite;
+            //     Caption = 'Vendor Setup';
+            //     SubPageLink = "Voucher ID" = field(ID);
+            //     UpdatePropagation = Both;
+            // }
             // Part(wpVoucherRoleLines; wpVoucherRoleLines)
             // {
             //     ApplicationArea = Basic, Suite;
