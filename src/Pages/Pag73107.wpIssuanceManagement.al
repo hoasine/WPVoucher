@@ -257,10 +257,86 @@ page 73107 "Issuance Management"
     }
 
     local procedure IssueTakaVoucher()
+    var
+        VoucherPage: Page "Scan Taka Voucher";
+        VoucherQty: Integer;
+        VoucherID: Code[20];
+        MemberCard: Record "LSC Membership Card";
     begin
-        //Check member có nằm trong Voucher Budget Buffer ID không 
+        if TempVoucherBudget.IsEmpty() then
+            Error('No voucher campaign found.');
 
-        //Dựa trên Voucher setup để lấy ra 
+        TempVoucherBudget.FindFirst();
+        VoucherID := TempVoucherBudget.ID;
+
+        if not MemberCard.Get(ScanMemberFilter) then
+            Error('Membership card not found.');
+
+        VoucherQty :=
+            GetAllowedVoucherQty(
+                VoucherID,
+                MemberCard."Club Code",
+                MemberCard."Scheme Code",
+                TotalSale);
+
+        if VoucherQty = 0 then
+            Error('No voucher eligible for issuance.');
+
+        VoucherPage.SetVoucherLimit(VoucherQty);
+        VoucherPage.RunModal();
+
+        if VoucherPage.WasIssued() then begin
+            Message('Voucher issuance completed successfully!');
+            ClearAllData();
+        end;
+    end;
+
+    procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
+    var
+        MemberVoucher: Record MemberVoucher;
+        VoucherQty: Decimal;
+    begin
+
+        MemberVoucher.Reset();
+        MemberVoucher.SetRange("Voucher ID", VoucherID);
+        MemberVoucher.SetRange("Member Club", MemberClub);
+        MemberVoucher.SetRange("Member Scheme", MemberScheme);
+
+        if not MemberVoucher.FindFirst() then
+            exit(0);
+
+        if MemberVoucher."Total value" = 0 then
+            exit(0);
+
+        VoucherQty :=
+            Round(Abs(TotalSale) / MemberVoucher."Total value", 1, '<');
+
+        if MemberVoucher."Max Voucher Qty" > 0 then
+            if VoucherQty > MemberVoucher."Max Voucher Qty" then
+                VoucherQty := MemberVoucher."Max Voucher Qty";
+
+        exit(VoucherQty);
+    end;
+
+    local procedure ClearAllData()
+    begin
+        Rec.Reset();
+        Rec.DeleteAll();
+        Clear(TotalSale);
+        Clear(TotalQuantity);
+        Clear(TotalItemValid);
+        Clear(ScanReceiptFilter);
+        Clear(ReceiptCountedFilter);
+        Clear(MemberAccount);
+        Clear(MembershipCard);
+        Clear(MemberDescription);
+        Clear(MemberContact);
+        Clear(MemberClub);
+        Clear(MemberScheme);
+        Clear(ScanMemberFilter);
+        Clear(TempVoucherBudget);
+        ShowVoucherBudgetPart := false;
+        CurrPage.Update(false);
     end;
 
     local procedure ClearAllTempData()
@@ -533,18 +609,50 @@ page 73107 "Issuance Management"
     end;
 
 
+    // local procedure AddVoucherBudgetToTemp(VoucherBudgetID: Code[20])
+    // var
+    //     Budget: Record wpVoucherMaintenance;
+    // begin
+    //     // đã tồn tại trong temp → bỏ qua
+    //     TempVoucherBudget.Reset();
+    //     TempVoucherBudget.SetRange(ID, VoucherBudgetID);
+    //     if TempVoucherBudget.FindFirst() then
+    //         exit;
+
+    //     // lấy từ bảng thật
+    //     if not Budget.Get(VoucherBudgetID) then
+    //         exit;
+
+    //     TempVoucherBudget.Init();
+    //     TempVoucherBudget.TransferFields(Budget);
+    //     TempVoucherBudget.Insert();
+    // end;
+
     local procedure AddVoucherBudgetToTemp(VoucherBudgetID: Code[20])
     var
         Budget: Record wpVoucherMaintenance;
     begin
-        // đã tồn tại trong temp → bỏ qua
-        TempVoucherBudget.Reset();
-        TempVoucherBudget.SetRange(ID, VoucherBudgetID);
-        if TempVoucherBudget.FindFirst() then
-            exit;
+        Budget.Reset();
+        Budget.SetRange(ID, VoucherBudgetID);
 
-        // lấy từ bảng thật
-        if not Budget.Get(VoucherBudgetID) then
+        // match member scheme
+        Budget.SetRange("Member Type", Budget."Member Type"::Scheme);
+        Budget.SetRange("Member Value", MemberScheme);
+
+        if not Budget.FindFirst() then begin
+            Budget.Reset();
+            Budget.SetRange(ID, VoucherBudgetID);
+            Budget.SetRange("Member Type", Budget."Member Type"::Club);
+            Budget.SetRange("Member Value", MemberClub);
+
+            if not Budget.FindFirst() then
+                exit;
+        end;
+
+        // prevent duplicate
+        TempVoucherBudget.Reset();
+        TempVoucherBudget.SetRange(ID, Budget.ID);
+        if TempVoucherBudget.FindFirst() then
             exit;
 
         TempVoucherBudget.Init();

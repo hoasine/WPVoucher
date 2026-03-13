@@ -1,0 +1,200 @@
+page 73111 "Scan Taka Voucher"
+{
+    PageType = Card;
+    Caption = 'Scan Taka Voucher';
+    SourceTable = "LSC POS Data Entry";
+    SourceTableTemporary = true;
+    InsertAllowed = false;
+    DeleteAllowed = false;
+    ModifyAllowed = false;
+
+    layout
+    {
+        area(Content)
+        {
+            group(ScanGroup)
+            {
+                Caption = 'Scan Voucher';
+
+                field(ScanVoucher; ScanVoucherCode)
+                {
+                    Caption = 'Scan Voucher Code';
+                    ApplicationArea = All;
+                    ShowMandatory = true;
+
+                    trigger OnValidate()
+                    begin
+                        if ScanVoucherCode = '' then
+                            exit;
+                        ProcessVoucher(ScanVoucherCode);
+                        Clear(ScanVoucherCode);
+                        CurrPage.Update(false);
+                    end;
+                }
+
+                field(ScannedCount; ScannedCount)
+                {
+                    Caption = 'Scanned';
+                    ApplicationArea = All;
+                    Editable = false;
+                    Style = Strong;
+                }
+
+                field(VoucherLimit; VoucherLimit)
+                {
+                    Caption = 'Required';
+                    ApplicationArea = All;
+                    Editable = false;
+                    Style = Strong;
+                }
+            }
+
+            group(ScannedListGroup)
+            {
+                Caption = 'Scanned Vouchers';
+
+                repeater(ScannedLines)
+                {
+                    ShowCaption = false;
+                    Editable = false;
+
+                    field("Entry Code"; Rec."Entry Code")
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Entry Code';
+                    }
+                    field("Amount"; Rec.Amount)
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Amount';
+                    }
+                    field("Document No."; Rec."Document No.")
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Document No.';
+                    }
+                    field("Expiring Date"; Rec."Expiring Date")
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Expiring Date';
+                    }
+                    field("Date Applied"; Rec."Date Applied")
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Date Applied';
+                    }
+                    field(StatusField; Rec.Status)
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Status';
+                        StyleExpr = StatusStyle;
+                    }
+                }
+            }
+        }
+    }
+
+    actions
+    {
+        area(Processing)
+        {
+            action(IssueVoucher)
+            {
+                Caption = 'Issue Voucher';
+                ApplicationArea = All;
+                Image = Approve;
+                Promoted = true;
+                PromotedCategory = Process;
+                PromotedIsBig = true;
+
+                trigger OnAction()
+                var
+                    PosEntry: Record "LSC POS Data Entry";
+                begin
+                    if ScannedCount = 0 then
+                        Error('Please scan at least one voucher before issuing.');
+
+                    if ScannedCount < VoucherLimit then begin
+                        if not Confirm('Only %1 of %2 vouchers scanned. Issue anyway?', false, ScannedCount, VoucherLimit) then
+                            exit;
+                    end else begin
+                        if not Confirm('Issue %1 voucher(s) for this member? This cannot be undone.', false, ScannedCount) then
+                            exit;
+                    end;
+
+                    Rec.Reset();
+                    if Rec.FindSet() then
+                        repeat
+                            PosEntry.Reset();
+                            PosEntry.SetRange("Entry Code", Rec."Entry Code");
+                            if PosEntry.FindFirst() then begin
+                                PosEntry.LockTable();
+                                PosEntry.Status := PosEntry.Status::Redeemed;
+                                PosEntry."Date Applied" := Today;
+                                PosEntry.Modify(true);
+                            end;
+                        until Rec.Next() = 0;
+
+                    IsIssued := true;
+                    CurrPage.Close();
+                end;
+            }
+        }
+    }
+
+    var
+        ScanVoucherCode: Code[30];
+        VoucherLimit: Integer;
+        ScannedCount: Integer;
+        StatusStyle: Text;
+        IsIssued: Boolean;
+
+    procedure SetVoucherLimit(pLimit: Integer)
+    begin
+        VoucherLimit := pLimit;
+    end;
+
+    procedure WasIssued(): Boolean
+    begin
+        exit(IsIssued);
+    end;
+
+    local procedure ProcessVoucher(VoucherCode: Code[30])
+    var
+        PosEntry: Record "LSC POS Data Entry";
+    begin
+        if ScannedCount >= VoucherLimit then
+            Error('Only %1 voucher(s) allowed. Already scanned %2.', VoucherLimit, ScannedCount);
+
+        PosEntry.Reset();
+        PosEntry.SetRange("Entry Code", VoucherCode);
+        if not PosEntry.FindFirst() then
+            Error('Voucher %1 not found.', VoucherCode);
+
+        if PosEntry.Status = PosEntry.Status::Redeemed then
+            Error('Voucher %1 is already redeemed.', VoucherCode);
+
+        if PosEntry.Status <> PosEntry.Status::Active then
+            Error('Voucher %1 is not active (current status: %2).', VoucherCode, PosEntry.Status);
+
+        Rec.Reset();
+        Rec.SetRange("Entry Code", VoucherCode);
+        if not Rec.IsEmpty() then
+            Error('Voucher %1 already scanned in this session.', VoucherCode);
+
+        Rec.Reset();
+        Rec.Init();
+        Rec.TransferFields(PosEntry);
+        Rec.Insert();
+
+        ScannedCount += 1;
+    end;
+
+    trigger OnAfterGetRecord()
+    begin
+        if Rec.Status = Rec.Status::Redeemed then
+            StatusStyle := 'Favorable'
+        else
+            StatusStyle := 'StandardAccent';
+    end;
+}
