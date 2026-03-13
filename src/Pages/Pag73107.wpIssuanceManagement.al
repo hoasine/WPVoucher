@@ -131,7 +131,7 @@ page 73107 "Issuance Management"
                     {
                         ApplicationArea = All;
                     }
-                    field("Item Status"; Rec."Voucher Status")
+                    field("Item Status"; Rec."Voucher Status Temp")
                     {
                         ApplicationArea = All;
                         StyleExpr = VoucherStyle;
@@ -379,7 +379,7 @@ page 73107 "Issuance Management"
             repeat
                 TotalQuantity += TempRec."Quantity";
 
-                if TempRec."Voucher Status" = TempRec."Voucher Status"::Valid then begin
+                if TempRec."Voucher Status Temp" = TempRec."Voucher Status Temp"::Valid then begin
                     TotalSale += TempRec."Total Rounded Amt.";
                     TotalItemValid += TempRec."Quantity";
                 end;
@@ -417,11 +417,21 @@ page 73107 "Issuance Management"
         VoucherLevel: Enum "Item Voucher Level";
         VoucherBudgetID: Code[20];
     begin
+
+
         TransHeader.Reset();
         TransHeader.SetRange("Receipt No.", ReceiptNo);
         // TransHeader.SetRange("Member Card No.", ScanMemberFilter); //Check Member
         if not TransHeader.FindFirst() then
             Error(ReceiptNotFoundErr, ReceiptNo);
+
+        //Kiểm tra hóa đơn trong ngày
+        if TransHeader.Date <> Today then
+            Error('Hóa đơn %1 khác ngày áp dụng. (Chỉ cho phép hóa đơn đổi voucher trong ngày)', ReceiptNo);
+
+        //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
+
+
 
         //Check receipt(in TEMP)
         TempRec.Copy(Rec, true);
@@ -440,12 +450,12 @@ page 73107 "Issuance Management"
 
             if CheckItemVoucher(Today, Rec."Item No.", VoucherLevel, VoucherBudgetID) then begin
 
-                Rec."Voucher Status" := Rec."Voucher Status"::Valid;
+                Rec."Voucher Status Temp" := Rec."Voucher Status Temp"::Valid;
 
                 AddVoucherBudgetToTemp(VoucherBudgetID);
                 CurrPage.VoucherBudgetPart.PAGE.SetTempData(TempVoucherBudget);
             end else
-                Rec."Voucher Status" := Rec."Voucher Status"::Invalid;
+                Rec."Voucher Status Temp" := Rec."Voucher Status Temp"::Invalid;
 
             Rec.Insert(false);
         until SourceSalesEntry.Next() = 0;
@@ -486,7 +496,7 @@ page 73107 "Issuance Management"
 
     trigger OnAfterGetRecord()
     begin
-        if Rec."Voucher Status" = Rec."Voucher Status"::Valid then
+        if Rec."Voucher Status Temp" = Rec."Voucher Status Temp"::Valid then
             VoucherStyle := 'Favorable'
         else
             VoucherStyle := 'Unfavorable';
@@ -581,16 +591,16 @@ page 73107 "Issuance Management"
             end;
 
             // Vendor (optional filter)
-            if VendorFilterIsConfigured(wpVoucherBudget.ID) then begin
-                if MatchVendor(wpVoucherBudget.ID, Item."Vendor No.", Exclude) then begin
-                    AppliedLevel := AppliedLevel::Vendor;
-                    VoucherBudgetID := wpVoucherBudget.ID;
-                    exit(not Exclude);
-                end;
+            // if VendorFilterIsConfigured(wpVoucherBudget.ID) then begin
+            //     if MatchVendor(wpVoucherBudget.ID, Item."Vendor No.", Exclude) then begin
+            //         AppliedLevel := AppliedLevel::Vendor;
+            //         VoucherBudgetID := wpVoucherBudget.ID;
+            //         exit(not Exclude);
+            //     end;
 
-                // đã cấu hình vendor nhưng item vendor không match => voucher này fail, chuyển qua voucher khác
-                // (không exit(false) ngay vì còn voucher khác trong vòng repeat)
-            end;
+            //     // đã cấu hình vendor nhưng item vendor không match => voucher này fail, chuyển qua voucher khác
+            //     // (không exit(false) ngay vì còn voucher khác trong vòng repeat)
+            // end;
 
             // All
             if MatchRule(
