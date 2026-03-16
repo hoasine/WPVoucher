@@ -42,7 +42,13 @@ page 73100 wpVoucherSetup
                 {
                     ApplicationArea = Basic, Suite;
                     ShowMandatory = true;
-                    ToolTip = 'Specifies the code for the number series that will be used to assign numbers to voucher maintenance.';
+                    ToolTip = 'Specifies the code for the number series that will be used to assign numbers to VBudget.';
+                }
+                field("Quantity Exchange of Day"; Rec."Quantity Exchange of Day")
+                {
+                    ApplicationArea = Basic, Suite;
+                    ShowMandatory = true;
+                    ToolTip = 'Specifies the code for the number series that will be used to assign numbers to Quantity Exchange of day.';
                 }
             }
         }

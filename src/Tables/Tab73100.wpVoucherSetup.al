@@ -30,6 +30,10 @@ table 73100 wpVoucherSetup
             Caption = 'VBudget ID Nos.';
             TableRelation = "No. Series".Code;
         }
+        field(22; "Quantity Exchange of Day"; Integer)
+        {
+            Caption = 'Quantity Exchange of Day.';
+        }
     }
     keys
     {
