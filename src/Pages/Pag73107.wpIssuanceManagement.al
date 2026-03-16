@@ -414,24 +414,31 @@ page 73107 "Issuance Management"
     local procedure AddReceiptToTemp(ReceiptNo: Code[20])
     var
         TempRec: Record "LSC Trans. Sales Entry" temporary;
+        logVoucherEntry: Record wpIssueVoucherLog;
         VoucherLevel: Enum "Item Voucher Level";
+        wpVoucherStp: Record wpVoucherSetup;
         VoucherBudgetID: Code[20];
+        quantityOfDay: Integer;
     begin
-
-
         TransHeader.Reset();
         TransHeader.SetRange("Receipt No.", ReceiptNo);
         // TransHeader.SetRange("Member Card No.", ScanMemberFilter); //Check Member
         if not TransHeader.FindFirst() then
             Error(ReceiptNotFoundErr, ReceiptNo);
 
-        //Kiểm tra hóa đơn trong ngày
-        if TransHeader.Date <> Today then
-            Error('Hóa đơn %1 khác ngày áp dụng. (Chỉ cho phép hóa đơn đổi voucher trong ngày)', ReceiptNo);
+        // //Kiểm tra hóa đơn trong ngày
+        // if TransHeader.Date <> Today then
+        //     Error('Hóa đơn %1 khác ngày áp dụng. (Chỉ cho phép hóa đơn đổi voucher trong ngày)', ReceiptNo);
 
         //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
+        // Clear(logVoucherEntry);
+        // logVoucherEntry.SetRange("Member Card", MembershipCard);
+        // logVoucherEntry.SetRange("Applied Date", Today);
+        // quantityOfDay := logVoucherEntry.Count();
 
-
+        // wpVoucherStp.Get();
+        // if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then
+        //     Error('Khách hàng vượt quá %1 lần được đổi trong 1 ngày.', wpVoucherStp."Quantity Exchange of Day");
 
         //Check receipt(in TEMP)
         TempRec.Copy(Rec, true);
