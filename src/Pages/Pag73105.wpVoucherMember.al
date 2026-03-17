@@ -2,7 +2,7 @@ page 73105 wpVoucherMember
 {
     Caption = 'Voucher Member Setup';
     PageType = ListPart;
-    SourceTable = MemberVoucher;
+    SourceTable = wpMemberVoucher;
 
     layout
     {

@@ -210,7 +210,7 @@ page 73107 "Issuance Management"
 
                 trigger OnAction()
                 begin
-                    ClearAllTempData();
+                    ClearAllData(true);
                 end;
             }
             action("&Update")
@@ -288,13 +288,13 @@ page 73107 "Issuance Management"
         if VoucherPage.WasIssued() then begin
             SaveIssueVoucherLog(VoucherID, VoucherPage.GetScannedEntryCodes());
             Message('Voucher issuance completed successfully!');
-            ClearAllData();
+            ClearAllData(false);
         end;
     end;
 
     procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
     var
-        MemberVoucher: Record MemberVoucher;
+        MemberVoucher: Record wpMemberVoucher;
         VoucherQty: Decimal;
     begin
 
@@ -356,8 +356,13 @@ page 73107 "Issuance Management"
         VoucherLog.Insert(true);
     end;
 
-    local procedure ClearAllData()
+    local procedure ClearAllData(isConfrim: Boolean)
     begin
+        if isConfrim = true then begin
+            if not Confirm('Clear all scanned receipts?', false) then
+                exit;
+        end;
+
         Rec.Reset();
         Rec.DeleteAll();
         Clear(TotalSale);
@@ -375,33 +380,11 @@ page 73107 "Issuance Management"
         Clear(TempVoucherBudget);
         ShowVoucherBudgetPart := false;
         CurrPage.Update(false);
-    end;
 
-    local procedure ClearAllTempData()
-    begin
-        if not Confirm('Clear all scanned receipts?', false) then
-            exit;
+        if isConfrim = true then begin
+            Message('All scanned receipt data has been cleared successfully.');
+        end;
 
-        Rec.Reset();
-        Rec.DeleteAll();
-        Clear(TotalSale);
-        Clear(TotalQuantity);
-        Clear(TotalItemValid);
-        Clear(ScanReceiptFilter);
-        Clear(ReceiptCountedFilter);
-        Clear(MemberAccount);
-        Clear(MembershipCard);
-        Clear(MemberDescription);
-        Clear(MemberContact);
-        Clear(MemberClub);
-        Clear(MemberScheme);
-        Clear(ScanMemberFilter);
-
-        ShowVoucherBudgetPart := false;
-
-        CurrPage.Update(false);
-
-        Message('All scanned receipt data has been cleared successfully.');
     end;
 
     local procedure CalcTotalSale()
@@ -473,7 +456,6 @@ page 73107 "Issuance Management"
         // logVoucherEntry.SetRange("Member Card", MembershipCard);
         // logVoucherEntry.SetRange("Applied Date", Today);
         // quantityOfDay := logVoucherEntry.Count();
-
         // wpVoucherStp.Get();
         // if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then
         //     Error('Khách hàng vượt quá %1 lần được đổi trong 1 ngày.', wpVoucherStp."Quantity Exchange of Day");
@@ -494,9 +476,7 @@ page 73107 "Issuance Management"
             Rec.TransferFields(SourceSalesEntry);
 
             if CheckItemVoucher(Today, Rec."Item No.", VoucherLevel, VoucherBudgetID) then begin
-
                 Rec."Voucher Status Temp" := Rec."Voucher Status Temp"::Valid;
-
                 AddVoucherBudgetToTemp(VoucherBudgetID);
                 CurrPage.VoucherBudgetPart.PAGE.SetTempData(TempVoucherBudget);
             end else
@@ -560,30 +540,32 @@ page 73107 "Issuance Management"
     ): Boolean
     var
         Item: Record Item;
-        wpVoucherBudget: Record wpVoucherMaintenance;
+        wpVoucherMaintenance: Record wpVoucherMaintenance;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         Exclude: Boolean;
     begin
         if not Item.Get(pItemNo) then
             exit(false);
 
-        wpVoucherBudget.Reset();
-        wpVoucherBudget.SetRange(Enabled, true);
-        wpVoucherBudget.SetRange("Starting Date", 0D, pDate);
-        wpVoucherBudget.SetFilter("Ending Date", '>=%1|%2', pDate, 0D);
+        wpVoucherMaintenance.Reset();
+        wpVoucherMaintenance.SetRange(Enabled, true);
+        wpVoucherMaintenance.SetRange("Starting Date", 0D, pDate);
+        wpVoucherMaintenance.SetFilter("Ending Date", '>=%1|%2', pDate, 0D);
 
-        if not wpVoucherBudget.FindSet() then
+        if not wpVoucherMaintenance.FindSet() then
             exit(false);
 
         repeat
             Exclude := false;
+
+            //Kiểm tra Item--------------
             wpVoucherItem.Reset();
-            wpVoucherItem.SetRange("Voucher ID", wpVoucherBudget.ID);
+            wpVoucherItem.SetRange("Voucher ID", wpVoucherMaintenance.ID);
 
             // Item
             if MatchRule(wpVoucherItem.Type::Item, pItemNo, Exclude) then begin
                 AppliedLevel := AppliedLevel::Item;
-                VoucherBudgetID := wpVoucherBudget.ID;
+                VoucherBudgetID := wpVoucherMaintenance.ID;
                 exit(not Exclude);
             end;
 
@@ -597,7 +579,7 @@ page 73107 "Issuance Management"
                         Exclude)
                     then begin
                         AppliedLevel := AppliedLevel::"Special Group";
-                        VoucherBudgetID := wpVoucherBudget.ID;
+                        VoucherBudgetID := wpVoucherMaintenance.ID;
                         exit(not Exclude);
                     end;
                 until ItemSpecialGroupLink.Next() = 0;
@@ -609,7 +591,7 @@ page 73107 "Issuance Management"
                 Exclude)
             then begin
                 AppliedLevel := AppliedLevel::"Retail Product Group";
-                VoucherBudgetID := wpVoucherBudget.ID;
+                VoucherBudgetID := wpVoucherMaintenance.ID;
                 exit(not Exclude);
             end;
 
@@ -620,7 +602,7 @@ page 73107 "Issuance Management"
                 Exclude)
             then begin
                 AppliedLevel := AppliedLevel::"Item Category";
-                VoucherBudgetID := wpVoucherBudget.ID;
+                VoucherBudgetID := wpVoucherMaintenance.ID;
                 exit(not Exclude);
             end;
 
@@ -631,15 +613,15 @@ page 73107 "Issuance Management"
                 Exclude)
             then begin
                 AppliedLevel := AppliedLevel::Division;
-                VoucherBudgetID := wpVoucherBudget.ID;
+                VoucherBudgetID := wpVoucherMaintenance.ID;
                 exit(not Exclude);
             end;
 
             // Vendor (optional filter)
-            // if VendorFilterIsConfigured(wpVoucherBudget.ID) then begin
-            //     if MatchVendor(wpVoucherBudget.ID, Item."Vendor No.", Exclude) then begin
+            // if VendorFilterIsConfigured(wpVoucherMaintenance.ID) then begin
+            //     if MatchVendor(wpVoucherMaintenance.ID, Item."Vendor No.", Exclude) then begin
             //         AppliedLevel := AppliedLevel::Vendor;
-            //         VoucherBudgetID := wpVoucherBudget.ID;
+            //         VoucherBudgetID := wpVoucherMaintenance.ID;
             //         exit(not Exclude);
             //     end;
 
@@ -654,64 +636,44 @@ page 73107 "Issuance Management"
                 Exclude)
             then begin
                 AppliedLevel := AppliedLevel::All;
-                VoucherBudgetID := wpVoucherBudget.ID;
+                VoucherBudgetID := wpVoucherMaintenance.ID;
                 exit(not Exclude);
             end;
 
-        until wpVoucherBudget.Next() = 0;
+        until wpVoucherMaintenance.Next() = 0;
 
         exit(false);
     end;
 
-
-    // local procedure AddVoucherBudgetToTemp(VoucherBudgetID: Code[20])
-    // var
-    //     Budget: Record wpVoucherMaintenance;
-    // begin
-    //     // đã tồn tại trong temp → bỏ qua
-    //     TempVoucherBudget.Reset();
-    //     TempVoucherBudget.SetRange(ID, VoucherBudgetID);
-    //     if TempVoucherBudget.FindFirst() then
-    //         exit;
-
-    //     // lấy từ bảng thật
-    //     if not Budget.Get(VoucherBudgetID) then
-    //         exit;
-
-    //     TempVoucherBudget.Init();
-    //     TempVoucherBudget.TransferFields(Budget);
-    //     TempVoucherBudget.Insert();
-    // end;
-
     local procedure AddVoucherBudgetToTemp(VoucherBudgetID: Code[20])
     var
-        Budget: Record wpVoucherMaintenance;
+        wpVoucherMaintenance: Record wpVoucherMaintenance;
     begin
-        Budget.Reset();
-        Budget.SetRange(ID, VoucherBudgetID);
+        wpVoucherMaintenance.Reset();
+        wpVoucherMaintenance.SetRange(ID, VoucherBudgetID);
 
-        // match member scheme
-        Budget.SetRange("Member Type", Budget."Member Type"::Scheme);
-        Budget.SetRange("Member Value", MemberScheme);
+        // Check member club | scheme
+        wpVoucherMaintenance.SetRange("Member Type", wpVoucherMaintenance."Member Type"::Scheme);
+        wpVoucherMaintenance.SetRange("Member Value", MemberScheme);
 
-        if not Budget.FindFirst() then begin
-            Budget.Reset();
-            Budget.SetRange(ID, VoucherBudgetID);
-            Budget.SetRange("Member Type", Budget."Member Type"::Club);
-            Budget.SetRange("Member Value", MemberClub);
+        if not wpVoucherMaintenance.FindFirst() then begin
+            wpVoucherMaintenance.Reset();
+            wpVoucherMaintenance.SetRange(ID, VoucherBudgetID);
+            wpVoucherMaintenance.SetRange("Member Type", wpVoucherMaintenance."Member Type"::Club);
+            wpVoucherMaintenance.SetRange("Member Value", MemberClub);
 
-            if not Budget.FindFirst() then
+            if not wpVoucherMaintenance.FindFirst() then
                 exit;
         end;
 
         // prevent duplicate
         TempVoucherBudget.Reset();
-        TempVoucherBudget.SetRange(ID, Budget.ID);
+        TempVoucherBudget.SetRange(ID, wpVoucherMaintenance.ID);
         if TempVoucherBudget.FindFirst() then
             exit;
 
         TempVoucherBudget.Init();
-        TempVoucherBudget.TransferFields(Budget);
+        TempVoucherBudget.TransferFields(wpVoucherMaintenance);
         TempVoucherBudget.Insert();
     end;
 
@@ -754,6 +716,3 @@ page 73107 "Issuance Management"
         exit(not VoucherVendor.IsEmpty());
     end;
 }
-
-
-

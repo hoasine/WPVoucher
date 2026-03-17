@@ -3,7 +3,7 @@ namespace worldpos.Voucher.Configuration;
 using worldpos.Voucher.Document;
 using Microsoft.Foundation.NoSeries;
 using Microsoft.Purchases.Document;
-table 73109 "wpIssueVoucherLog"
+table 73104 "wpIssueVoucherLog"
 {
     Caption = 'Issue Voucher Log';
     DataClassification = ToBeClassified;
@@ -23,11 +23,11 @@ table 73109 "wpIssueVoucherLog"
         }
         field(3; "Receipt Applied"; Text[500])
         {
-            Caption = 'Receipt Scanned';
+            Caption = 'Receipt Applied';
         }
         field(4; "Voucher Applied"; Text[200])
         {
-            Caption = 'Voucher Redeempted';
+            Caption = 'Voucher Applied';
         }
         field(5; "Applied Date"; Date)
         {
