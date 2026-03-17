@@ -23,11 +23,11 @@ table 73109 "wpIssueVoucherLog"
         }
         field(3; "Receipt Applied"; Text[500])
         {
-            Caption = 'Receipt Applied';
+            Caption = 'Receipt Scanned';
         }
         field(4; "Voucher Applied"; Text[200])
         {
-            Caption = 'Voucher Applied';
+            Caption = 'Voucher Redeempted';
         }
         field(5; "Applied Date"; Date)
         {

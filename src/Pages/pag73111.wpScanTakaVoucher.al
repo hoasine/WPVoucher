@@ -190,6 +190,21 @@ page 73111 "Scan Taka Voucher"
         ScannedCount += 1;
     end;
 
+    procedure GetScannedEntryCodes(): Text[200]
+    var
+        Result: Text[200];
+    begin
+        Rec.Reset();
+        if Rec.FindSet() then
+            repeat
+                if Result = '' then
+                    Result := Rec."Entry Code"
+                else
+                    Result := CopyStr(Result + ';' + Rec."Entry Code", 1, 200);
+            until Rec.Next() = 0;
+        exit(Result);
+    end;
+
     trigger OnAfterGetRecord()
     begin
         if Rec.Status = Rec.Status::Redeemed then

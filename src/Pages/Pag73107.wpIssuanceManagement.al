@@ -286,6 +286,7 @@ page 73107 "Issuance Management"
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
+            SaveIssueVoucherLog(VoucherID, VoucherPage.GetScannedEntryCodes());
             Message('Voucher issuance completed successfully!');
             ClearAllData();
         end;
@@ -316,6 +317,43 @@ page 73107 "Issuance Management"
                 VoucherQty := MemberVoucher."Max Voucher Qty";
 
         exit(VoucherQty);
+    end;
+
+    local procedure SaveIssueVoucherLog(VoucherID: Code[20]; ScannedEntryCodes: Text[200])
+    var
+        VoucherLog: Record wpIssueVoucherLog;
+        TempRec: Record "LSC Trans. Sales Entry" temporary;
+        ReceiptList: Text[500];
+        LastCounter: Integer;
+    begin
+        // lay list receipt tu temp table
+        TempRec.Copy(Rec, true);
+        TempRec.Reset();
+        if TempRec.FindSet() then
+            repeat
+                if ReceiptList = '' then
+                    ReceiptList := TempRec."Receipt No."
+                else
+                    // lay receipt no
+                    if StrPos(ReceiptList, TempRec."Receipt No.") = 0 then
+                        ReceiptList := CopyStr(ReceiptList + ';' + TempRec."Receipt No.", 1, 500);
+            until TempRec.Next() = 0;
+
+        VoucherLog.Reset();
+        VoucherLog.SetCurrentKey("Replication Counter");
+        if VoucherLog.FindLast() then
+            LastCounter := VoucherLog."Replication Counter" + 1
+        else
+            LastCounter := 1;
+
+        VoucherLog.Init();
+        VoucherLog."Replication Counter" := LastCounter;
+        VoucherLog."Voucher ID" := VoucherID;
+        VoucherLog."Member Card" := CopyStr(MembershipCard, 1, 20);
+        VoucherLog."Receipt Applied" := ReceiptList;
+        VoucherLog."Voucher Applied" := ScannedEntryCodes;
+        VoucherLog."Applied Date" := Today;
+        VoucherLog.Insert(true);
     end;
 
     local procedure ClearAllData()
