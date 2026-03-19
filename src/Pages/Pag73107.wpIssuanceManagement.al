@@ -294,29 +294,27 @@ page 73107 "Issuance Management"
 
     procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
     var
-        MemberVoucher: Record wpMemberVoucher;
+        wpMemberVoucher: Record wpMemberVoucher;
         VoucherQty: Decimal;
     begin
+        wpMemberVoucher.Reset();
+        wpMemberVoucher.SetRange("Voucher ID", VoucherID);
+        wpMemberVoucher.SetRange("Member Club", MemberClub);
+        wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
 
-        MemberVoucher.Reset();
-        MemberVoucher.SetRange("Voucher ID", VoucherID);
-        MemberVoucher.SetRange("Member Club", MemberClub);
-        MemberVoucher.SetRange("Member Scheme", MemberScheme);
-
-        if not MemberVoucher.FindFirst() then
+        if not wpMemberVoucher.FindFirst() then
             exit(0);
 
-        if MemberVoucher."Total value" = 0 then
+        if wpMemberVoucher."Total value" = 0 then
             exit(0);
 
-        VoucherQty :=
-            Round(Abs(TotalSale) / MemberVoucher."Total value", 1, '<');
+        VoucherQty := Round(Abs(TotalSale) / wpMemberVoucher."Total value", 1, '<');
 
-        if MemberVoucher."Max Voucher Qty" > 0 then
-            if VoucherQty > MemberVoucher."Max Voucher Qty" then
-                VoucherQty := MemberVoucher."Max Voucher Qty";
+        if wpMemberVoucher."Max Voucher Qty" > 0 then
+            if VoucherQty > wpMemberVoucher."Max Voucher Qty" then
+                VoucherQty := wpMemberVoucher."Max Voucher Qty";
 
-        exit(VoucherQty);
+        exit(Round(VoucherQty, 1, '<'));
     end;
 
     local procedure SaveIssueVoucherLog(VoucherID: Code[20]; ScannedEntryCodes: Text[200])
@@ -378,6 +376,7 @@ page 73107 "Issuance Management"
         Clear(MemberScheme);
         Clear(ScanMemberFilter);
         Clear(TempVoucherBudget);
+        Clear(MaxReceiptAllowed);
         ShowVoucherBudgetPart := false;
         CurrPage.Update(false);
 
@@ -430,6 +429,8 @@ page 73107 "Issuance Management"
         MemberContact := shipCard."Contact No.";
         MemberClub := shipCard."Club Code";
         MemberScheme := shipCard."Scheme Code";
+
+        LoadMemberVoucherLimits();
     end;
 
     local procedure AddReceiptToTemp(ReceiptNo: Code[20])
@@ -441,6 +442,11 @@ page 73107 "Issuance Management"
         VoucherBudgetID: Code[20];
         quantityOfDay: Integer;
     begin
+        if MaxReceiptAllowed > 0 then
+            if ReceiptCountedFilter >= MaxReceiptAllowed then
+                Error('This member (scheme: %1) is only allowed to scan %2 receipt(s). Already scanned: %3.',
+                    MemberScheme, MaxReceiptAllowed, ReceiptCountedFilter);
+
         TransHeader.Reset();
         TransHeader.SetRange("Receipt No.", ReceiptNo);
         // TransHeader.SetRange("Member Card No.", ScanMemberFilter); //Check Member
@@ -488,7 +494,13 @@ page 73107 "Issuance Management"
         Rec.Reset();
 
         ReceiptCountedFilter += 1;
-
+        RefilterVoucherBudget();
+        if TempVoucherBudget.IsEmpty() then
+            ShowVoucherBudgetPart := false
+        else begin
+            ShowVoucherBudgetPart := true;
+            CurrPage.VoucherBudgetPart.PAGE.SetTempData(TempVoucherBudget);
+        end;
         CalcTotalSale();
 
         CurrPage.Update(false);
@@ -517,6 +529,7 @@ page 73107 "Issuance Management"
         MemberScheme: Text;
         MemberDescription: Text;
         ShowVoucherBudgetPart: Boolean;
+        MaxReceiptAllowed: Integer;
         TempVoucherBudget: Record wpVoucherMaintenance temporary;
 
     trigger OnAfterGetRecord()
@@ -556,6 +569,8 @@ page 73107 "Issuance Management"
             exit(false);
 
         repeat
+
+
             Exclude := false;
 
             //Kiểm tra Item--------------
@@ -715,4 +730,73 @@ page 73107 "Issuance Management"
         VoucherVendor.SetRange("Voucher ID", VoucherID);
         exit(not VoucherVendor.IsEmpty());
     end;
+
+
+    local procedure LoadMemberVoucherLimits()
+    var
+        wpVoucherMaint: Record wpVoucherMaintenance;
+        wpMemberVoucher: Record wpMemberVoucher;
+    begin
+        MaxReceiptAllowed := 0;
+
+
+        //tim list voucher active hom nay
+        wpVoucherMaint.Reset();
+        wpVoucherMaint.SetRange(Enabled, true);
+        wpVoucherMaint.SetRange("Starting Date", 0D, Today);
+        wpVoucherMaint.SetFilter("Ending Date", '>=%1|%2', Today, 0D);
+
+        if not wpVoucherMaint.FindSet() then
+            exit;
+
+        repeat
+            wpMemberVoucher.Reset();
+            wpMemberVoucher.SetRange("Voucher ID", wpVoucherMaint.ID);
+            wpMemberVoucher.SetRange("Member Club", MemberClub);
+            wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
+            //query Receipt Qty cua tat ca voucher lay ra cai lớn nhất
+            if wpMemberVoucher.FindFirst() then
+                if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then
+                    MaxReceiptAllowed := wpMemberVoucher."Receipt Qty";
+
+        until wpVoucherMaint.Next() = 0;
+    end;
+
+    local procedure RefilterVoucherBudget()
+    var
+        wpMemberVoucher: Record wpMemberVoucher;
+        TempBudgetToRemove: Record wpVoucherMaintenance temporary;
+    begin
+
+
+        TempVoucherBudget.Reset();
+        if not TempVoucherBudget.FindSet() then
+            exit;
+
+        repeat
+            wpMemberVoucher.Reset();
+            wpMemberVoucher.SetRange("Voucher ID", TempVoucherBudget.ID);
+            wpMemberVoucher.SetRange("Member Club", MemberClub);
+            wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
+
+            if wpMemberVoucher.FindFirst() then
+
+                //số hóa đơn scan > số lượng hóa đơn trong setup voucher => loại voucher đó ra khỏi temp
+                if ReceiptCountedFilter > wpMemberVoucher."Receipt Qty" then begin
+                    TempBudgetToRemove.Init();
+                    TempBudgetToRemove.TransferFields(TempVoucherBudget);
+                    if not TempBudgetToRemove.Insert() then;
+                end;
+
+        until TempVoucherBudget.Next() = 0;
+
+        TempBudgetToRemove.Reset();
+        if TempBudgetToRemove.FindSet() then
+            repeat
+                TempVoucherBudget.Reset();
+                TempVoucherBudget.SetRange(ID, TempBudgetToRemove.ID);
+                TempVoucherBudget.DeleteAll();
+            until TempBudgetToRemove.Next() = 0;
+    end;
+
 }
