@@ -443,10 +443,11 @@ page 73107 "Issuance Management"
         quantityOfDay: Integer;
     begin
         if MaxReceiptAllowed > 0 then
-            if ReceiptCountedFilter >= MaxReceiptAllowed then
-                Error('This member (scheme: %1) is only allowed to scan %2 receipt(s). Already scanned: %3.',
+            if ReceiptCountedFilter >= MaxReceiptAllowed then begin
+                Message('This member (scheme: %1) is only allowed to scan %2 receipt(s). Already scanned: %3.',
                     MemberScheme, MaxReceiptAllowed, ReceiptCountedFilter);
-
+                exit;
+            end;
         TransHeader.Reset();
         TransHeader.SetRange("Receipt No.", ReceiptNo);
         // TransHeader.SetRange("Member Card No.", ScanMemberFilter); //Check Member
@@ -681,7 +682,7 @@ page 73107 "Issuance Management"
                 exit;
         end;
 
-        // prevent duplicate
+        // duplicate
         TempVoucherBudget.Reset();
         TempVoucherBudget.SetRange(ID, wpVoucherMaintenance.ID);
         if TempVoucherBudget.FindFirst() then
@@ -739,8 +740,6 @@ page 73107 "Issuance Management"
     begin
         MaxReceiptAllowed := 0;
 
-
-        //tim list voucher active hom nay
         wpVoucherMaint.Reset();
         wpVoucherMaint.SetRange(Enabled, true);
         wpVoucherMaint.SetRange("Starting Date", 0D, Today);
@@ -753,11 +752,15 @@ page 73107 "Issuance Management"
             wpMemberVoucher.Reset();
             wpMemberVoucher.SetRange("Voucher ID", wpVoucherMaint.ID);
             wpMemberVoucher.SetRange("Member Club", MemberClub);
-            wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
-            //query Receipt Qty cua tat ca voucher lay ra cai lớn nhất
-            if wpMemberVoucher.FindFirst() then
-                if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then
-                    MaxReceiptAllowed := wpMemberVoucher."Receipt Qty";
+
+            if wpMemberVoucher.FindSet() then
+                repeat
+                    // Neu co scheme thi apply cho scheme do, neu khong co thi apply all
+                    if (wpMemberVoucher."Member Scheme" = '') or
+                       (wpMemberVoucher."Member Scheme" = MemberScheme) then
+                        if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then
+                            MaxReceiptAllowed := wpMemberVoucher."Receipt Qty";
+                until wpMemberVoucher.Next() = 0;
 
         until wpVoucherMaint.Next() = 0;
     end;
@@ -766,23 +769,36 @@ page 73107 "Issuance Management"
     var
         wpMemberVoucher: Record wpMemberVoucher;
         TempBudgetToRemove: Record wpVoucherMaintenance temporary;
+        ReceiptQtyLimit: Integer;
+        Found: Boolean;
     begin
-
-
         TempVoucherBudget.Reset();
         if not TempVoucherBudget.FindSet() then
             exit;
 
         repeat
+            ReceiptQtyLimit := 0;
+            Found := false;
+
             wpMemberVoucher.Reset();
             wpMemberVoucher.SetRange("Voucher ID", TempVoucherBudget.ID);
             wpMemberVoucher.SetRange("Member Club", MemberClub);
-            wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
 
-            if wpMemberVoucher.FindFirst() then
+            if wpMemberVoucher.FindSet() then
+                repeat
+                    // Tim scheme truoc, neu khong co thi lay rong
+                    if wpMemberVoucher."Member Scheme" = MemberScheme then begin
+                        ReceiptQtyLimit := wpMemberVoucher."Receipt Qty";
+                        Found := true;
+                    end else
+                        if (wpMemberVoucher."Member Scheme" = '') and (not Found) then begin
+                            ReceiptQtyLimit := wpMemberVoucher."Receipt Qty";
+                            Found := true;
+                        end;
+                until wpMemberVoucher.Next() = 0;
 
-                //số hóa đơn scan > số lượng hóa đơn trong setup voucher => loại voucher đó ra khỏi temp
-                if ReceiptCountedFilter > wpMemberVoucher."Receipt Qty" then begin
+            if Found then
+                if ReceiptCountedFilter > ReceiptQtyLimit then begin
                     TempBudgetToRemove.Init();
                     TempBudgetToRemove.TransferFields(TempVoucherBudget);
                     if not TempBudgetToRemove.Insert() then;
