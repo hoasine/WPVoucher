@@ -293,6 +293,7 @@ page 73107 "Issuance Management"
             Error('No voucher eligible for issuance.');
 
         VoucherPage.SetVoucherLimit(VoucherQty);
+        VoucherPage.SetVoucherID(VoucherID);
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
@@ -300,6 +301,8 @@ page 73107 "Issuance Management"
             Message('Voucher issuance completed successfully!');
             ClearAllData(false);
         end;
+
+
     end;
 
     procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
@@ -839,7 +842,7 @@ page 73107 "Issuance Management"
     local procedure AddVoucherBudgetToTemp(pItemNo: Code[20])
     var
         Item: Record Item;
-        wpVoucherMaint: Record wpVoucherMaintenance;
+        wpVoucher: Record wpVoucherMaintenance;
         wpMemberVoucher: Record wpMemberVoucher;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         MatchedMemberVoucher: Record wpMemberVoucher;
@@ -851,11 +854,11 @@ page 73107 "Issuance Management"
         if not Item.Get(pItemNo) then
             exit;
 
-        wpVoucherMaint.Reset();
-        wpVoucherMaint.SetRange(Enabled, true);
-        wpVoucherMaint.SetRange("Starting Date", 0D, Today);
-        wpVoucherMaint.SetFilter("Ending Date", '>=%1|%2', Today, 0D);
-        if not wpVoucherMaint.FindSet() then
+        wpVoucher.Reset();
+        wpVoucher.SetRange(Enabled, true);
+        wpVoucher.SetRange("Starting Date", 0D, Today);
+        wpVoucher.SetFilter("Ending Date", '>=%1|%2', Today, 0D);
+        if not wpVoucher.FindSet() then
             exit;
 
         repeat
@@ -866,10 +869,11 @@ page 73107 "Issuance Management"
 
             // Check member & số lượng receip
             wpMemberVoucher.Reset();
-            wpMemberVoucher.SetRange("Voucher ID", wpVoucherMaint.ID);
+            wpMemberVoucher.SetRange("Voucher ID", wpVoucher.ID);
             wpMemberVoucher.SetRange("Member Club", MemberClub);
             if wpMemberVoucher.FindSet() then
                 repeat
+                    // Đầu tiên check member, xem voucher setup có scheme không?
                     if (wpMemberVoucher."Member Scheme" = '') or (wpMemberVoucher."Member Scheme" = MemberScheme) then begin
                         MemberQualifies := true;
                         if wpMemberVoucher."Member Scheme" = MemberScheme then begin
@@ -883,20 +887,20 @@ page 73107 "Issuance Management"
                     end;
                 until wpMemberVoucher.Next() = 0;
 
-            // Nều receipt qty > 
+            // Bước 2 check qty receipt đã count so với receipt qty của voucher setup 
             if MemberQualifies and (ReceiptQtyLimit > 0) then
                 if ReceiptCountedFilter >= ReceiptQtyLimit then
                     MemberQualifies := false;
-
+            // Bước 3 check Sale
             if MemberQualifies and (MatchedMemberVoucher."Total value" > 0) then
                 if Abs(TotalSale) < MatchedMemberVoucher."Total value" then
                     MemberQualifies := false;
 
-            // Check item setup (lấy lại của anh Hòa)
+            // Bước 4 check item (lấy lại của anh Hòa)
             if MemberQualifies then begin
                 Exclude := false;
                 wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", wpVoucherMaint.ID);
+                wpVoucherItem.SetRange("Voucher ID", wpVoucher.ID);
 
                 if MatchRule(wpVoucherItem.Type::Item, pItemNo, Exclude) then
                     ItemQualifies := not Exclude;
@@ -928,20 +932,20 @@ page 73107 "Issuance Management"
                         ItemQualifies := not Exclude;
             end;
 
-            // Thêm vào bảng tạm
+            // Thêm vào bảng tạm khi cả 4 bước trên thỏa
             if ItemQualifies then begin
                 TempVoucherBudget.Reset();
-                TempVoucherBudget.SetRange(ID, wpVoucherMaint.ID);
+                TempVoucherBudget.SetRange(ID, wpVoucher.ID);
                 if TempVoucherBudget.IsEmpty() then begin
                     TempVoucherBudget.Init();
-                    TempVoucherBudget.TransferFields(wpVoucherMaint);
+                    TempVoucherBudget.TransferFields(wpVoucher);
                     TempVoucherBudget."Total value" := MatchedMemberVoucher."Total value";
                     TempVoucherBudget."Max Voucher Qty" := MatchedMemberVoucher."Max Voucher Qty";
                     TempVoucherBudget.Insert();
                 end;
             end;
 
-        until wpVoucherMaint.Next() = 0;
+        until wpVoucher.Next() = 0;
     end;
 
 }

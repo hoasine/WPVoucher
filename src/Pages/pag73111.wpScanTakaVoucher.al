@@ -110,6 +110,7 @@ page 73111 "Scan Taka Voucher"
                 trigger OnAction()
                 var
                     PosEntry: Record "LSC POS Data Entry";
+                    VoucherEntry: Record "LSC Voucher Entries";
                 begin
                     if ScannedCount = 0 then
                         Error('Please scan at least one voucher before issuing.');
@@ -125,6 +126,7 @@ page 73111 "Scan Taka Voucher"
                     Rec.Reset();
                     if Rec.FindSet() then
                         repeat
+                            // Update POS Data Entry status
                             PosEntry.Reset();
                             PosEntry.SetRange("Entry Code", Rec."Entry Code");
                             if PosEntry.FindFirst() then begin
@@ -133,11 +135,24 @@ page 73111 "Scan Taka Voucher"
                                 PosEntry."Date Applied" := Today;
                                 PosEntry.Modify(true);
                             end;
+
+                            if VoucherID <> '' then begin
+                                VoucherEntry.Reset();
+                                VoucherEntry.SetRange("Voucher No.", Rec."Entry Code");
+                                if VoucherEntry.FindSet() then
+                                    repeat
+                                        VoucherEntry.LockTable();
+                                        VoucherEntry."Voucher Id" := VoucherID;
+                                        VoucherEntry.Modify(true);
+                                    until VoucherEntry.Next() = 0;
+                            end;
+
                         until Rec.Next() = 0;
 
                     IsIssued := true;
                     CurrPage.Close();
                 end;
+
             }
         }
     }
@@ -148,6 +163,7 @@ page 73111 "Scan Taka Voucher"
         ScannedCount: Integer;
         StatusStyle: Text;
         IsIssued: Boolean;
+        VoucherID: Code[20];
 
     procedure SetVoucherLimit(pLimit: Integer)
     begin
@@ -188,6 +204,11 @@ page 73111 "Scan Taka Voucher"
         Rec.Insert();
 
         ScannedCount += 1;
+    end;
+
+    procedure SetVoucherID(pVoucherID: Code[20])
+    begin
+        VoucherID := pVoucherID;
     end;
 
     procedure GetScannedEntryCodes(): Text[200]
