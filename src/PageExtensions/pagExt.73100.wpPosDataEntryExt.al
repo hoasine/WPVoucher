@@ -49,6 +49,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             }
             action("Activate by Document")
             {
+                Enabled = ActiveVoucherVisible;
                 ApplicationArea = All;
                 Caption = 'Activate Voucher';
                 Image = ActivateDiscounts;

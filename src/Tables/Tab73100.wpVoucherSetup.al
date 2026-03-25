@@ -20,6 +20,10 @@ table 73100 wpVoucherSetup
         {
             Caption = 'Enabled';
         }
+        field(23; "Voucher GL Date"; Date)
+        {
+
+        }
         field(20; "Voucher ID Nos."; Code[20])
         {
             Caption = 'Voucher ID Nos.';
