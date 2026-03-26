@@ -1,5 +1,5 @@
 
-codeunit 73102 wpPointAllowanceToGL
+codeunit 73102 wpVoucherToGL
 {
     trigger OnRun()
 
