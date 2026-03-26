@@ -1,5 +1,6 @@
 codeunit 73101 "wpTakaVoucherValidation"
 {
+
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeDataEntryCheckAmount', '', false, false)]
     local procedure OnBeforeDataEntryCheckAmount(
         MgrKeyActive: Boolean;
@@ -15,9 +16,6 @@ codeunit 73101 "wpTakaVoucherValidation"
         VoucherEntry: Record "LSC Voucher Entries";
         VoucherID: Code[20];
     begin
-        // Only validate for Taka Voucher entry type
-        // DataEntryType.Code is the entry type code e.g. 'TAKA'
-        // Check by looking up if there's a voucher entry for this data entry
         VoucherEntry.Reset();
         VoucherEntry.SetRange("Voucher No.", DataEntry."Entry Code");
         if not VoucherEntry.FindFirst() then
@@ -27,15 +25,14 @@ codeunit 73101 "wpTakaVoucherValidation"
         if VoucherID = '' then
             exit;
 
-        // Validate item in transaction qualifies for this voucher
-        if not TransactionHasQualifyingItem(Line."Receipt No.", VoucherID) then begin
+        if not ValidateTrans(Line."Receipt No.", VoucherID) then begin
             ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
             IsHandled := true;
             ReturnValue := false;
         end;
     end;
 
-    local procedure TransactionHasQualifyingItem(ReceiptNo: Code[20]; VoucherID: Code[20]): Boolean
+    local procedure ValidateTrans(ReceiptNo: Code[20]; VoucherID: Code[20]): Boolean
     var
         TransLine: Record "LSC Pos Trans. Line";
         wpVoucherItem: Record wpVoucherItemDiscStp;
@@ -43,6 +40,7 @@ codeunit 73101 "wpTakaVoucherValidation"
         Item: Record Item;
         Exclude: Boolean;
     begin
+
         TransLine.Reset();
         TransLine.SetRange("Receipt No.", ReceiptNo);
         // Filter item line
@@ -128,5 +126,33 @@ codeunit 73101 "wpTakaVoucherValidation"
         until TransLine.Next() = 0;
 
         exit(false);
+    end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnAfterPostTransaction', '', false, false)]
+    local procedure OnAfterPostTransaction(var TransactionHeader_p: Record "LSC Transaction Header")
+    var
+        TransInfoCodeEntry: Record "LSC Trans. Infocode Entry";
+        PosDataEntry: Record "LSC POS Data Entry";
+    begin
+        TransInfoCodeEntry.Reset();
+        TransInfoCodeEntry.SetRange("Transaction No.", TransactionHeader_p."Transaction No.");
+        TransInfoCodeEntry.SetRange("Store No.", TransactionHeader_p."Store No.");
+        TransInfoCodeEntry.SetRange("POS Terminal No.", TransactionHeader_p."POS Terminal No.");
+        TransInfoCodeEntry.SetFilter("Information", '<>''''');
+
+        if TransInfoCodeEntry.FindSet() then
+            repeat
+                PosDataEntry.Reset();
+                PosDataEntry.SetRange("Entry Type", 'TK VOUCHER');
+                PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
+
+                if PosDataEntry.FindFirst() then begin
+                    PosDataEntry.LockTable();
+                    PosDataEntry.Status := PosDataEntry.Status::Used;
+                    PosDataEntry."Date Applied" := Today;
+                    PosDataEntry."Applied by Receipt No." := TransactionHeader_p."Receipt No.";
+                    PosDataEntry.Modify(true);
+                end;
+            until TransInfoCodeEntry.Next() = 0;
     end;
 }

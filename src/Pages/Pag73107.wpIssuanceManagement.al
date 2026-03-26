@@ -282,12 +282,11 @@ page 73107 "Issuance Management"
         if not MemberCard.Get(ScanMemberFilter) then
             Error('Membership card not found.');
 
-        VoucherQty :=
-            GetAllowedVoucherQty(
-                VoucherID,
-                MemberCard."Club Code",
-                MemberCard."Scheme Code",
-                TotalSale);
+        VoucherQty := GetAllowedVoucherQty(
+            VoucherID,
+            MemberCard."Club Code",
+            MemberCard."Scheme Code",
+            TotalSale);
 
         if VoucherQty = 0 then
             Error('No voucher eligible for issuance.');
@@ -297,12 +296,44 @@ page 73107 "Issuance Management"
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
+
+            MarkRedeemedItem(VoucherID);
+
             SaveIssueVoucherLog(VoucherID, VoucherPage.GetScannedEntryCodes());
             Message('Voucher issuance completed successfully!');
             ClearAllData(false);
         end;
+    end;
 
+    local procedure MarkRedeemedItem(VoucherID: Code[20])
+    var
+        salesEntry: Record "LSC Trans. Sales Entry";
+        TempRec: Record "LSC Trans. Sales Entry" temporary;
+    begin
+        TempRec.Copy(Rec, true);
+        TempRec.Reset();
 
+        if not TempRec.FindSet() then
+            exit;
+
+        repeat
+            if TempRec."Voucher Status Temp" = TempRec."Voucher Status Temp"::Valid then begin
+
+                salesEntry.Reset();
+                salesEntry.SetRange("Store No.", TempRec."Store No.");
+                salesEntry.SetRange("POS Terminal No.", TempRec."POS Terminal No.");
+                salesEntry.SetRange("Transaction No.", TempRec."Transaction No.");
+                salesEntry.SetRange("Line No.", TempRec."Line No.");
+
+                if salesEntry.FindFirst() then begin
+                    salesEntry.LockTable();
+                    salesEntry."Voucher Status" := 'Redeemed';
+                    salesEntry."Voucher ID" := VoucherID;
+                    salesEntry."Voucher Status Temp" := salesEntry."Voucher Status Temp"::Valid;
+                    salesEntry.Modify(true);
+                end;
+            end;
+        until TempRec.Next() = 0;
     end;
 
     procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
