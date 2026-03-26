@@ -50,6 +50,12 @@ page 73100 wpVoucherSetup
                     ShowMandatory = true;
                     ToolTip = 'Specifies the code for the number series that will be used to assign numbers to Quantity Exchange of day.';
                 }
+                field("Voucher GL Date"; Rec."Voucher GL Date")
+                {
+                    ApplicationArea = Basic, Suite;
+                    ShowMandatory = true;
+                    ToolTip = 'Specifies the code for the number series that will be used to assign numbers to Voucher GL Date.';
+                }
             }
         }
     }
