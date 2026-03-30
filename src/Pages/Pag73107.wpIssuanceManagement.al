@@ -270,8 +270,10 @@ page 73107 "Issuance Management"
     var
         VoucherPage: Page "Scan Taka Voucher";
         VoucherQty: Integer;
+        VoucherAmount: Decimal;
         VoucherID: Code[20];
         MemberCard: Record "LSC Membership Card";
+        TempScannedVouchers: Record "LSC POS Data Entry" temporary;
     begin
         if TempVoucherBudget.IsEmpty() then
             Error('No voucher campaign found.');
@@ -282,27 +284,91 @@ page 73107 "Issuance Management"
         if not MemberCard.Get(ScanMemberFilter) then
             Error('Membership card not found.');
 
-        VoucherQty := GetAllowedVoucherQty(
+        GetAllowedVoucherQty(
             VoucherID,
             MemberCard."Club Code",
             MemberCard."Scheme Code",
-            TotalSale);
+            VoucherQty,
+            VoucherAmount,
+            TotalSale
+            );
 
         if VoucherQty = 0 then
             Error('No voucher eligible for issuance.');
 
-        VoucherPage.SetVoucherLimit(VoucherQty);
+        VoucherPage.SetVoucherLimitAndAmount(VoucherQty, VoucherAmount);
         VoucherPage.SetVoucherID(VoucherID);
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
-
             MarkRedeemedItem(VoucherID);
-
-            SaveIssueVoucherLog(VoucherID, VoucherPage.GetScannedEntryCodes());
+            VoucherPage.GetScannedVouchers(TempScannedVouchers);
+            SaveIssueVoucherLog(VoucherID, TempScannedVouchers);
             Message('Voucher issuance completed successfully!');
             ClearAllData(false);
         end;
+    end;
+
+    local procedure SaveIssueVoucherLog(VoucherID: Code[20]; var TempScannedVouchers: Record "LSC POS Data Entry" temporary)
+    var
+        VoucherLog: Record wpIssueVoucherLog;
+        VoucherLogLine: Record wpIssueVoucherLogLine;
+        TempRec: Record "LSC Trans. Sales Entry" temporary;
+        ReceiptBuffer: Record "Name/Value Buffer" temporary;
+        LineNo: Integer;
+    begin
+        // unique receipts
+        TempRec.Copy(Rec, true);
+        TempRec.Reset();
+        if TempRec.FindSet() then
+            repeat
+                if TempRec."Receipt No." <> '' then begin
+                    ReceiptBuffer.Reset();
+                    ReceiptBuffer.SetRange(Name, TempRec."Receipt No.");
+                    if not ReceiptBuffer.FindFirst() then begin
+                        ReceiptBuffer.Init();
+                        ReceiptBuffer.ID := ReceiptBuffer.Count + 1;
+                        ReceiptBuffer.Name := TempRec."Receipt No.";
+                        ReceiptBuffer.Insert();
+                    end;
+                end;
+            until TempRec.Next() = 0;
+
+        VoucherLog.Init();
+        VoucherLog."Voucher ID" := VoucherID;
+        VoucherLog."Member Card" := CopyStr(MembershipCard, 1, MaxStrLen(VoucherLog."Member Card"));
+        VoucherLog."Applied Date" := Today;
+        VoucherLog."Applied Time" := Time;
+        VoucherLog."User ID" := CopyStr(UserId, 1, MaxStrLen(VoucherLog."User ID"));
+        VoucherLog."Receipt Count" := ReceiptBuffer.Count;
+        VoucherLog."Voucher Count" := TempScannedVouchers.Count;
+        VoucherLog.Insert(true);
+
+        LineNo := 10000;
+
+        ReceiptBuffer.Reset();
+        if ReceiptBuffer.FindSet() then
+            repeat
+                VoucherLogLine.Init();
+                VoucherLogLine."Entry No." := VoucherLog."Entry No.";
+                VoucherLogLine."Line No." := LineNo;
+                VoucherLogLine.Type := VoucherLogLine.Type::Receipt;
+                VoucherLogLine."Document No." := CopyStr(ReceiptBuffer.Name, 1, MaxStrLen(VoucherLogLine."Document No."));
+                VoucherLogLine.Insert(true);
+                LineNo := LineNo + 10000;
+            until ReceiptBuffer.Next() = 0;
+
+        TempScannedVouchers.Reset();
+        if TempScannedVouchers.FindSet() then
+            repeat
+                VoucherLogLine.Init();
+                VoucherLogLine."Entry No." := VoucherLog."Entry No.";
+                VoucherLogLine."Line No." := LineNo;
+                VoucherLogLine.Type := VoucherLogLine.Type::Voucher;
+                VoucherLogLine."Document No." := CopyStr(TempScannedVouchers."Entry Code", 1, MaxStrLen(VoucherLogLine."Document No."));
+                VoucherLogLine.Insert(true);
+                LineNo := LineNo + 10000;
+            until TempScannedVouchers.Next() = 0;
     end;
 
     local procedure MarkRedeemedItem(VoucherID: Code[20])
@@ -336,10 +402,14 @@ page 73107 "Issuance Management"
         until TempRec.Next() = 0;
     end;
 
-    procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; TotalSale: Decimal): Integer
+
+
+
+    procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]; var VoucherQty: Integer;
+        var VoucherAmount: Decimal; TotalSale: Decimal
+    )
     var
         wpMemberVoucher: Record wpMemberVoucher;
-        VoucherQty: Decimal;
     begin
         // Thử tìm member scheme trước.
         wpMemberVoucher.Reset();
@@ -354,12 +424,18 @@ page 73107 "Issuance Management"
             wpMemberVoucher.SetRange("Member Club", MemberClub);
             wpMemberVoucher.SetRange("Member Scheme", '');
 
-            if not wpMemberVoucher.FindFirst() then
-                exit(0);
+            if not wpMemberVoucher.FindFirst() then begin
+                VoucherQty := 0;
+                VoucherAmount := 0;
+                exit;
+            end;
         end;
 
-        if wpMemberVoucher."Total value" = 0 then
-            exit(0);
+        if wpMemberVoucher."Total value" = 0 then begin
+            VoucherQty := 0;
+            VoucherAmount := 0;
+            exit;
+        end;
 
         VoucherQty := Round(Abs(TotalSale) / wpMemberVoucher."Total value", 1, '<');
 
@@ -367,44 +443,8 @@ page 73107 "Issuance Management"
             if VoucherQty > wpMemberVoucher."Max Voucher Qty" then
                 VoucherQty := wpMemberVoucher."Max Voucher Qty";
 
-        exit(Round(VoucherQty, 1, '<'));
-    end;
-
-    local procedure SaveIssueVoucherLog(VoucherID: Code[20]; ScannedEntryCodes: Text[200])
-    var
-        VoucherLog: Record wpIssueVoucherLog;
-        TempRec: Record "LSC Trans. Sales Entry" temporary;
-        ReceiptList: Text[500];
-        LastCounter: Integer;
-    begin
-        // Lấy list receipt từ temp table
-        TempRec.Copy(Rec, true);
-        TempRec.Reset();
-        if TempRec.FindSet() then
-            repeat
-                if ReceiptList = '' then
-                    ReceiptList := TempRec."Receipt No."
-                else
-                    // lay receipt no
-                    if StrPos(ReceiptList, TempRec."Receipt No.") = 0 then
-                        ReceiptList := CopyStr(ReceiptList + ';' + TempRec."Receipt No.", 1, 500);
-            until TempRec.Next() = 0;
-
-        VoucherLog.Reset();
-        VoucherLog.SetCurrentKey("Replication Counter");
-        if VoucherLog.FindLast() then
-            LastCounter := VoucherLog."Replication Counter" + 1
-        else
-            LastCounter := 1;
-
-        VoucherLog.Init();
-        VoucherLog."Replication Counter" := LastCounter;
-        VoucherLog."Voucher ID" := VoucherID;
-        VoucherLog."Member Card" := CopyStr(MembershipCard, 1, 20);
-        VoucherLog."Receipt Applied" := ReceiptList;
-        VoucherLog."Voucher Applied" := ScannedEntryCodes;
-        VoucherLog."Applied Date" := Today;
-        VoucherLog.Insert(true);
+        VoucherQty := Round(VoucherQty, 1, '<');
+        VoucherAmount := wpMemberVoucher."Voucher Amount";
     end;
 
     local procedure ClearAllData(isConfrim: Boolean)
@@ -502,35 +542,65 @@ page 73107 "Issuance Management"
                     MemberScheme, MaxReceiptAllowed, ReceiptCountedFilter);
                 exit;
             end;
+
         TransHeader.Reset();
         TransHeader.SetRange("Receipt No.", ReceiptNo);
-        // TransHeader.SetRange("Member Card No.", ScanMemberFilter); //Check Member
-        if not TransHeader.FindFirst() then
-            Error(ReceiptNotFoundErr, ReceiptNo);
+        if not TransHeader.FindFirst() then begin
+            Message(ReceiptNotFoundErr, ReceiptNo);
+            exit;
+        end;
 
-        // //Kiểm tra hóa đơn trong ngày
-        // if TransHeader.Date <> Today then
-        //     Error('Hóa đơn %1 khác ngày áp dụng. (Chỉ cho phép hóa đơn đổi voucher trong ngày)', ReceiptNo);
+        //Kiểm tra member hợp lệ
+        if TransHeader."Member Card No." = '' then begin
+            Message('Receipt:= %1 not found Member Card.', ReceiptNo, TransHeader."Member Card No.");
+            exit;
+        end;
+
+        //Kiểm tra member hợp lệ
+        if TransHeader."Member Card No." <> ScanMemberFilter then begin
+            Message('Receipt:= %1 of Card No %2. Not valid', ReceiptNo, TransHeader."Member Card No.");
+            exit;
+        end;
+
+        //Kiểm tra hóa đơn trong ngày
+        if TransHeader.Date <> Today then begin
+            Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
+            exit;
+        end;
 
         //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
-        // Clear(logVoucherEntry);
-        // logVoucherEntry.SetRange("Member Card", MembershipCard);
-        // logVoucherEntry.SetRange("Applied Date", Today);
-        // quantityOfDay := logVoucherEntry.Count();
-        // wpVoucherStp.Get();
-        // if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then
-        //     Error('Khách hàng vượt quá %1 lần được đổi trong 1 ngày.', wpVoucherStp."Quantity Exchange of Day");
+        Clear(logVoucherEntry);
+        logVoucherEntry.SetRange("Member Card", MembershipCard);
+        logVoucherEntry.SetRange("Applied Date", Today);
+        quantityOfDay := logVoucherEntry.Count();
+        wpVoucherStp.Get();
+        if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
+            Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
+            exit;
+        end;
 
         //Check receipt(in TEMP)
         TempRec.Copy(Rec, true);
         TempRec.SetRange("Receipt No.", ReceiptNo);
-        if TempRec.FindFirst() then
-            Error(ReceiptExistsErr, ReceiptNo);
+        if TempRec.FindFirst() then begin
+            Message(ReceiptExistsErr);
+            exit;
+        end;
 
         SourceSalesEntry.Reset();
         SourceSalesEntry.SetRange("Receipt No.", ReceiptNo);
         if not SourceSalesEntry.FindSet() then
             Error('No sales lines found for receipt %1.', ReceiptNo);
+
+        if (SourceSalesEntry."Refunded Store No." <> '') then begin //Loại trừ bill đã cancel
+            Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
+            exit;
+        end;
+
+        if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
+            Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
+            exit;
+        end;
 
         repeat
             Rec.Init();

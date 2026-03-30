@@ -1,4 +1,4 @@
-enum 73103 wpItemDiscType
+enum 73101 wpItemDiscType
 {
     Extensible = true;
 

@@ -1,5 +1,5 @@
 
-enum 73106 "Voucher Status"
+enum 73100 "Voucher Status"
 {
     Extensible = true;
 

@@ -128,31 +128,31 @@ codeunit 73101 "wpTakaVoucherValidation"
         exit(false);
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnAfterPostTransaction', '', false, false)]
-    local procedure OnAfterPostTransaction(var TransactionHeader_p: Record "LSC Transaction Header")
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
+    local procedure OnBeforeInsertPaymentEntryV2(var POSTransaction: Record "LSC POS Transaction"; var POSTransLineTemp: Record "LSC POS Trans. Line" temporary; var TransPaymentEntry: Record "LSC Trans. Payment Entry")
     var
-        TransInfoCodeEntry: Record "LSC Trans. Infocode Entry";
+        TransInfoCodeEntry: Record "LSC POS Trans. Infocode Entry";
         PosDataEntry: Record "LSC POS Data Entry";
     begin
         TransInfoCodeEntry.Reset();
-        TransInfoCodeEntry.SetRange("Transaction No.", TransactionHeader_p."Transaction No.");
-        TransInfoCodeEntry.SetRange("Store No.", TransactionHeader_p."Store No.");
-        TransInfoCodeEntry.SetRange("POS Terminal No.", TransactionHeader_p."POS Terminal No.");
+        TransInfoCodeEntry.SetRange("Receipt No.", POSTransaction."Receipt No.");
+        TransInfoCodeEntry.SetRange("Store No.", POSTransaction."Store No.");
+        TransInfoCodeEntry.SetRange("POS Terminal No.", POSTransaction."POS Terminal No.");
         TransInfoCodeEntry.SetFilter("Information", '<>''''');
 
         if TransInfoCodeEntry.FindSet() then
             repeat
                 PosDataEntry.Reset();
-                PosDataEntry.SetRange("Entry Type", 'TK VOUCHER');
                 PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
-
                 if PosDataEntry.FindFirst() then begin
                     PosDataEntry.LockTable();
                     PosDataEntry.Status := PosDataEntry.Status::Used;
-                    PosDataEntry."Date Applied" := Today;
-                    PosDataEntry."Applied by Receipt No." := TransactionHeader_p."Receipt No.";
+                    // PosDataEntry."Date Applied" := Today;
+                    // PosDataEntry."Applied by Receipt No." := TransactionHeader_p."Receipt No.";
                     PosDataEntry.Modify(true);
                 end;
             until TransInfoCodeEntry.Next() = 0;
     end;
+
+    //Check status voucher member, redeemp, expiredate
 }

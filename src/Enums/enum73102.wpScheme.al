@@ -1,4 +1,4 @@
-enum 73104 wpScheme
+enum 73102 wpScheme
 {
     Extensible = true;
 

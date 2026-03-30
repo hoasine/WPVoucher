@@ -1,68 +1,64 @@
 namespace worldpos.Voucher.Configuration;
 
-using worldpos.Voucher.Document;
-using Microsoft.Foundation.NoSeries;
-using Microsoft.Purchases.Document;
-table 73104 "wpIssueVoucherLog"
+table 73134 wpIssueVoucherLog
 {
     Caption = 'Issue Voucher Log';
     DataClassification = ToBeClassified;
 
     fields
     {
-        field(1; "Voucher ID"; Code[20])
+        field(1; "Entry No."; Integer)
+        {
+            Caption = 'Entry No.';
+            AutoIncrement = true;
+        }
+        field(10; "Voucher ID"; Code[20])
         {
             Caption = 'Voucher ID';
-            TableRelation = wpVoucherMaintenance.ID;
         }
-
-        field(2; "Member Card"; Code[20])
+        field(20; "Member Card"; Code[20])
         {
             Caption = 'Member Card';
-            TableRelation = "LSC Membership Card"."Card No.";
         }
-        field(3; "Receipt Applied"; Text[500])
-        {
-            Caption = 'Receipt Applied';
-        }
-        field(4; "Voucher Applied"; Text[200])
-        {
-            Caption = 'Voucher Applied';
-        }
-        field(5; "Applied Date"; Date)
+        field(30; "Applied Date"; Date)
         {
             Caption = 'Applied Date';
         }
-        field(9; "Replication Counter"; Integer)
+        field(40; "Applied Time"; Time)
         {
-            Caption = 'Replication Counter';
-            Editable = false;
-            DataClassification = CustomerContent;
-
-            trigger OnValidate()
-            var
-                voucherLog: Record "wpIssueVoucherLog";
-            begin
-                if not ClientSessionUtility.UpdateReplicationCountersForTable(RecordId, "Replication Counter") then
-                    exit;
-                voucherLog.SetCurrentKey("Replication Counter");
-                if voucherLog.FindLast then
-                    "Replication Counter" := voucherLog."Replication Counter" + 1
-                else
-                    "Replication Counter" := 1;
-            end;
+            Caption = 'Applied Time';
+        }
+        field(50; "User ID"; Code[50])
+        {
+            Caption = 'User ID';
+        }
+        field(60; "Store No."; Code[20])
+        {
+            Caption = 'Store No.';
+        }
+        field(70; "Receipt Count"; Integer)
+        {
+            Caption = 'Receipt Count';
+        }
+        field(80; "Voucher Count"; Integer)
+        {
+            Caption = 'Voucher Count';
         }
     }
+
     keys
     {
-        key(PK; "Replication Counter")
+        key(PK; "Entry No.")
         {
             Clustered = true;
         }
+
+        key(Key2; "Member Card", "Applied Date")
+        {
+        }
+
+        key(Key3; "Voucher ID", "Applied Date")
+        {
+        }
     }
-
-    var
-        ClientSessionUtility: Codeunit "LSC Client Session Utility";
-
-
 }

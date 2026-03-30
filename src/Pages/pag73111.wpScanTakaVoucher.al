@@ -132,7 +132,7 @@ page 73111 "Scan Taka Voucher"
                             if PosEntry.FindFirst() then begin
                                 PosEntry.LockTable();
                                 PosEntry.Status := PosEntry.Status::Redeemed;
-                                PosEntry."Date Applied" := Today;
+                                PosEntry."Date Redeemed" := Today;
                                 PosEntry.Modify(true);
                             end;
 
@@ -160,14 +160,16 @@ page 73111 "Scan Taka Voucher"
     var
         ScanVoucherCode: Code[30];
         VoucherLimit: Integer;
+        VoucherAmount: Decimal;
         ScannedCount: Integer;
         StatusStyle: Text;
         IsIssued: Boolean;
         VoucherID: Code[20];
 
-    procedure SetVoucherLimit(pLimit: Integer)
+    procedure SetVoucherLimitAndAmount(pLimit: Integer; pAmount: Decimal)
     begin
         VoucherLimit := pLimit;
+        VoucherAmount := pAmount;
     end;
 
     procedure WasIssued(): Boolean
@@ -190,6 +192,9 @@ page 73111 "Scan Taka Voucher"
         if PosEntry.Status = PosEntry.Status::Redeemed then
             Error('Voucher %1 is already redeemed.', VoucherCode);
 
+        if PosEntry.Amount <> VoucherAmount then
+            Error('Only applies to amount of %1.', VoucherAmount);
+
         if PosEntry.Status <> PosEntry.Status::Active then
             Error('Voucher %1 is not active (current status: %2).', VoucherCode, PosEntry.Status);
 
@@ -211,19 +216,17 @@ page 73111 "Scan Taka Voucher"
         VoucherID := pVoucherID;
     end;
 
-    procedure GetScannedEntryCodes(): Text[200]
-    var
-        Result: Text[200];
+    procedure GetScannedVouchers(var TempScanned: Record "LSC POS Data Entry" temporary)
     begin
+        TempScanned.Reset();
+        TempScanned.DeleteAll();
+
         Rec.Reset();
         if Rec.FindSet() then
             repeat
-                if Result = '' then
-                    Result := Rec."Entry Code"
-                else
-                    Result := CopyStr(Result + ';' + Rec."Entry Code", 1, 200);
+                TempScanned := Rec;
+                TempScanned.Insert();
             until Rec.Next() = 0;
-        exit(Result);
     end;
 
     trigger OnAfterGetRecord()

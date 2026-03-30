@@ -12,6 +12,13 @@ tableextension 73102 wpPOSEntryExt extends "LSC POS Data Entry"
             Caption = 'Status';
             DataClassification = CustomerContent;
         }
-
+        field(73102; "Date Actived"; Date)
+        {
+            Caption = 'Date Actived';
+        }
+        field(73104; "Date Redeemed"; Date)
+        {
+            Caption = 'Date Redeemed';
+        }
     }
 }

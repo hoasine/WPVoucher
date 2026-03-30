@@ -20,6 +20,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         {
             action("Import POS Data Entry")
             {
+                Visible = ActiveVoucherVisible;
                 ApplicationArea = All;
                 Caption = 'Import POS Data Entry';
                 Image = ImportExcel;
@@ -35,6 +36,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
 
             action("Download Excel Template")
             {
+                Visible = ActiveVoucherVisible;
                 ApplicationArea = All;
                 Caption = 'Download Excel Template';
                 Image = Export;
@@ -49,7 +51,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             }
             action("Activate by Document")
             {
-                Enabled = ActiveVoucherVisible;
+                Visible = ActiveVoucherVisible;
                 ApplicationArea = All;
                 Caption = 'Activate Voucher';
                 Image = ActivateDiscounts;
@@ -148,6 +150,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
 
         if VoucherEntry.FindFirst() then begin
+            PosEntry."Date Actived" := Today;
             PosEntry.Status := PosEntry.Status::Active;
             PosEntry.Modify();
             exit(false);
@@ -260,6 +263,10 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             CheckEntry.SetRange("Entry Code", TempImport."Entry Code");
             if CheckEntry.FindFirst() then
                 AddErrorMessage(TempImport, 'Entry already exists in POS Data Entry.');
+
+            if (TempImport."Entry Type" <> Rec."Entry Type") then begin
+                AddErrorMessage(TempImport, 'Entry Type is incorrect.');
+            end;
 
             TempImport.Insert();
 
