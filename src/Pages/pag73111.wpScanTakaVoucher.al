@@ -40,13 +40,22 @@ page 73111 "Scan Taka Voucher"
                     Style = Strong;
                 }
 
-                field(VoucherLimit; VoucherLimit)
+                field(MaxVoucherQty; MaxVoucherQty)
                 {
-                    Caption = 'Required';
+                    Caption = 'Max Voucher Qty';
                     ApplicationArea = All;
                     Editable = false;
                     Style = Strong;
                 }
+
+                field(VoucherLimit; VoucherLimit)
+                {
+                    Caption = 'Actual Voucher Get';
+                    ApplicationArea = All;
+                    Editable = false;
+                    Style = Strong;
+                }
+
             }
 
             group(ScannedListGroup)
@@ -113,7 +122,7 @@ page 73111 "Scan Taka Voucher"
                     VoucherEntry: Record "LSC Voucher Entries";
                 begin
                     if ScannedCount = 0 then
-                        Error('Please scan at least one voucher before issuing.');
+                        Message('Please scan at least one voucher before issuing.');
 
                     if ScannedCount < VoucherLimit then begin
                         if not Confirm('Only %1 of %2 vouchers scanned. Issue anyway?', false, ScannedCount, VoucherLimit) then
@@ -165,11 +174,13 @@ page 73111 "Scan Taka Voucher"
         StatusStyle: Text;
         IsIssued: Boolean;
         VoucherID: Code[20];
+        MaxVoucherQty: Integer;
 
-    procedure SetVoucherLimitAndAmount(pLimit: Integer; pAmount: Decimal)
+    procedure SetVoucherLimitAndAmount(pLimit: Integer; pAmount: Decimal; pMax: Integer)
     begin
         VoucherLimit := pLimit;
         VoucherAmount := pAmount;
+        MaxVoucherQty := pMax;
     end;
 
     procedure WasIssued(): Boolean
@@ -181,27 +192,42 @@ page 73111 "Scan Taka Voucher"
     var
         PosEntry: Record "LSC POS Data Entry";
     begin
-        if ScannedCount >= VoucherLimit then
-            Error('Only %1 voucher(s) allowed. Already scanned %2.', VoucherLimit, ScannedCount);
+        if ScannedCount >= VoucherLimit then begin
+            Message('Only %1 voucher(s) allowed. Already scanned %2.', VoucherLimit, ScannedCount);
+            exit;
+        end;
+
 
         PosEntry.Reset();
         PosEntry.SetRange("Entry Code", VoucherCode);
-        if not PosEntry.FindFirst() then
-            Error('Voucher %1 not found.', VoucherCode);
+        if not PosEntry.FindFirst() then begin
+            Message('Voucher %1 not found.', VoucherCode);
+            exit;
+        end;
 
-        if PosEntry.Status = PosEntry.Status::Redeemed then
-            Error('Voucher %1 is already redeemed.', VoucherCode);
 
-        if PosEntry.Amount <> VoucherAmount then
-            Error('Only applies to amount of %1.', VoucherAmount);
+        if PosEntry.Status = PosEntry.Status::Redeemed then begin
+            Message('Voucher %1 is already redeemed.', VoucherCode);
+            exit;
+        end;
 
-        if PosEntry.Status <> PosEntry.Status::Active then
-            Error('Voucher %1 is not active (current status: %2).', VoucherCode, PosEntry.Status);
+
+        if PosEntry.Amount <> VoucherAmount then begin
+            Message('Only applies to amount of %1.', VoucherAmount);
+            exit;
+        end;
+
+        if PosEntry.Status <> PosEntry.Status::Active then begin
+            Message('Voucher %1 is not active (current status: %2).', VoucherCode, PosEntry.Status);
+            exit;
+        end;
 
         Rec.Reset();
         Rec.SetRange("Entry Code", VoucherCode);
-        if not Rec.IsEmpty() then
-            Error('Voucher %1 already scanned in this session.', VoucherCode);
+        if not Rec.IsEmpty() then begin
+            Message('Voucher %1 already scanned in this session.', VoucherCode);
+            exit;
+        end;
 
         Rec.Reset();
         Rec.Init();

@@ -274,15 +274,21 @@ page 73107 "Issuance Management"
         VoucherID: Code[20];
         MemberCard: Record "LSC Membership Card";
         TempScannedVouchers: Record "LSC POS Data Entry" temporary;
+        memberVoucher: Record "wpMemberVoucher";
+        MaxVoucherQty: Integer;
     begin
-        if TempVoucherBudget.IsEmpty() then
-            Error('No voucher campaign found.');
+        if TempVoucherBudget.IsEmpty() then begin
+            Message('No voucher campaign found.');
+        end;
+
 
         TempVoucherBudget.FindFirst();
         VoucherID := TempVoucherBudget.ID;
 
-        if not MemberCard.Get(ScanMemberFilter) then
-            Error('Membership card not found.');
+        if not MemberCard.Get(ScanMemberFilter) then begin
+            Message('Membership card not found.');
+        end;
+
 
         GetAllowedVoucherQty(
             VoucherID,
@@ -293,11 +299,21 @@ page 73107 "Issuance Management"
             TotalSale
             );
 
-        if VoucherQty = 0 then
-            Error('No voucher eligible for issuance.');
+        if VoucherQty = 0 then begin
+            Message('No voucher eligible for issuance.');
+        end;
 
-        VoucherPage.SetVoucherLimitAndAmount(VoucherQty, VoucherAmount);
+        memberVoucher.Reset();
+        memberVoucher.SetRange("Voucher ID", VoucherID);
+        memberVoucher.SetRange("Member Club", MemberCard."Club Code");
+        memberVoucher.SetRange("Member Scheme", MemberCard."Scheme Code");
+        if memberVoucher.FindFirst() then begin
+            MaxVoucherQty := memberVoucher."Max Voucher Qty";
+        end;
+        VoucherPage.SetVoucherLimitAndAmount(VoucherQty, VoucherAmount, MaxVoucherQty);
+
         VoucherPage.SetVoucherID(VoucherID);
+
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
@@ -551,33 +567,33 @@ page 73107 "Issuance Management"
         end;
 
         //Kiểm tra member hợp lệ
-        if TransHeader."Member Card No." = '' then begin
-            Message('Receipt:= %1 not found Member Card.', ReceiptNo, TransHeader."Member Card No.");
-            exit;
-        end;
+        // if TransHeader."Member Card No." = '' then begin
+        //     Message('Receipt:= %1 not found Member Card.', ReceiptNo, TransHeader."Member Card No.");
+        //     exit;
+        // end;
 
         //Kiểm tra member hợp lệ
-        if TransHeader."Member Card No." <> ScanMemberFilter then begin
-            Message('Receipt:= %1 of Card No %2. Not valid', ReceiptNo, TransHeader."Member Card No.");
-            exit;
-        end;
+        // if TransHeader."Member Card No." <> ScanMemberFilter then begin
+        //     Message('Receipt:= %1 of Card No %2. Not valid', ReceiptNo, TransHeader."Member Card No.");
+        //     exit;
+        // end;
 
-        //Kiểm tra hóa đơn trong ngày
-        if TransHeader.Date <> Today then begin
-            Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
-            exit;
-        end;
+        // //Kiểm tra hóa đơn trong ngày
+        // if TransHeader.Date <> Today then begin
+        //     Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
+        //     exit;
+        // end;
 
-        //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
-        Clear(logVoucherEntry);
-        logVoucherEntry.SetRange("Member Card", MembershipCard);
-        logVoucherEntry.SetRange("Applied Date", Today);
-        quantityOfDay := logVoucherEntry.Count();
-        wpVoucherStp.Get();
-        if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
-            Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
-            exit;
-        end;
+        // //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
+        // Clear(logVoucherEntry);
+        // logVoucherEntry.SetRange("Member Card", MembershipCard);
+        // logVoucherEntry.SetRange("Applied Date", Today);
+        // quantityOfDay := logVoucherEntry.Count();
+        // wpVoucherStp.Get();
+        // if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
+        //     Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
+        //     exit;
+        // end;
 
         //Check receipt(in TEMP)
         TempRec.Copy(Rec, true);
@@ -589,18 +605,18 @@ page 73107 "Issuance Management"
 
         SourceSalesEntry.Reset();
         SourceSalesEntry.SetRange("Receipt No.", ReceiptNo);
-        if not SourceSalesEntry.FindSet() then
-            Error('No sales lines found for receipt %1.', ReceiptNo);
+        // if not SourceSalesEntry.FindSet() then
+        //     Error('No sales lines found for receipt %1.', ReceiptNo);
 
-        if (SourceSalesEntry."Refunded Store No." <> '') then begin //Loại trừ bill đã cancel
-            Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
-            exit;
-        end;
+        // if (SourceSalesEntry."Refunded Store No." <> '') then begin //Loại trừ bill đã cancel
+        //     Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
+        //     exit;
+        // end;
 
-        if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
-            Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
-            exit;
-        end;
+        // if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
+        //     Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
+        //     exit;
+        // end;
 
         repeat
             Rec.Init();
@@ -644,9 +660,9 @@ page 73107 "Issuance Management"
         ScanReceiptFilter: Text[100];
         ScanMemberFilter: Text[100];
         SourceSalesEntry: Record "LSC Trans. Sales Entry";
-        ReceiptExistsErr: Label 'Receipt %1 already scanned.';
-        ReceiptNotFoundErr: Label 'Receipt %1 not found.';
-        ShipCardNotFoundErr: Label 'Membership Card %1 not found.';
+        ReceiptExistsErr: Label 'Receipt already scanned.';
+        ReceiptNotFoundErr: Label 'Receipt not found.';
+        ShipCardNotFoundErr: Label 'Membership Card not found.';
         MembercontactNotFoundErr: Label 'Member contact of card not found.';
         TransHeader: Record "LSC Transaction Header";
         ReceiptCountedFilter: Integer;
