@@ -603,20 +603,21 @@ page 73107 "Issuance Management"
             exit;
         end;
 
+        Clear(SourceSalesEntry);
         SourceSalesEntry.Reset();
         SourceSalesEntry.SetRange("Receipt No.", ReceiptNo);
-        // if not SourceSalesEntry.FindSet() then
-        //     Error('No sales lines found for receipt %1.', ReceiptNo);
+        if not SourceSalesEntry.FindSet() then
+            Error('No sales lines found for receipt %1.', ReceiptNo);
 
-        // if (SourceSalesEntry."Refunded Store No." <> '') then begin //Loại trừ bill đã cancel
-        //     Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
-        //     exit;
-        // end;
+        if (SourceSalesEntry."Refunded Store No." <> '') then begin //Loại trừ bill đã cancel
+            Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
+            exit;
+        end;
 
-        // if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
-        //     Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
-        //     exit;
-        // end;
+        if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
+            Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
+            exit;
+        end;
 
         repeat
             Rec.Init();

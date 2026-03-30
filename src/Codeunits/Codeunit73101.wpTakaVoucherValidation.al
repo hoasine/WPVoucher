@@ -21,8 +21,11 @@ codeunit 73101 "wpTakaVoucherValidation"
         // Lấy Pos data entry
         PosDataEntry.Reset();
         PosDataEntry.SetRange("Entry Code", DataEntry."Entry Code");
-        if not PosDataEntry.FindFirst() then
+        if not PosDataEntry.FindFirst() then begin
+            ErrorTxt := 'Not found POS Data Entry Table.';
             exit;
+        end;
+
 
         // check voucher phải ở status redeemp
         if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
@@ -39,14 +42,21 @@ codeunit 73101 "wpTakaVoucherValidation"
             exit;
         end;
 
+        Clear(VoucherEntry);
         VoucherEntry.Reset();
+        VoucherEntry.SetRange("Entry Type", VoucherEntry."Entry Type"::Issued);
         VoucherEntry.SetRange("Voucher No.", DataEntry."Entry Code");
-        if not VoucherEntry.FindFirst() then
+        if not VoucherEntry.FindFirst() then begin
+            ErrorTxt := 'Not found Voucher Entry Table.';
             exit;
+        end;
+
 
         VoucherID := VoucherEntry."Voucher Id";
-        if VoucherID = '' then
+        if VoucherID = '' then begin
+            ErrorTxt := 'Not found Voucher Id.';
             exit;
+        end;
 
         // Check coi member này có dùng được voucher này không
 
@@ -130,8 +140,8 @@ codeunit 73101 "wpTakaVoucherValidation"
                 wpVoucherItem.SetRange("No.", TransLine.Number);
                 if wpVoucherItem.FindLast() then begin
                     Exclude := wpVoucherItem.Exclude;
-                    if not Exclude then
-                        exit(true);
+                    if Exclude then
+                        exit(false);
                 end;
 
                 // Special Group
@@ -145,8 +155,8 @@ codeunit 73101 "wpTakaVoucherValidation"
                         wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
                         if wpVoucherItem.FindLast() then begin
                             Exclude := wpVoucherItem.Exclude;
-                            if not Exclude then
-                                exit(true);
+                            if Exclude then
+                                exit(false);
                         end;
                     until ItemSpecialGroupLink.Next() = 0;
 
@@ -157,8 +167,8 @@ codeunit 73101 "wpTakaVoucherValidation"
                 wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
                 if wpVoucherItem.FindLast() then begin
                     Exclude := wpVoucherItem.Exclude;
-                    if not Exclude then
-                        exit(true);
+                    if Exclude then
+                        exit(false);
                 end;
 
                 // Item Category
@@ -168,8 +178,8 @@ codeunit 73101 "wpTakaVoucherValidation"
                 wpVoucherItem.SetRange("No.", Item."Item Category Code");
                 if wpVoucherItem.FindLast() then begin
                     Exclude := wpVoucherItem.Exclude;
-                    if not Exclude then
-                        exit(true);
+                    if Exclude then
+                        exit(false);
                 end;
 
                 // Division
@@ -179,26 +189,23 @@ codeunit 73101 "wpTakaVoucherValidation"
                 wpVoucherItem.SetRange("No.", Item."LSC Division Code");
                 if wpVoucherItem.FindLast() then begin
                     Exclude := wpVoucherItem.Exclude;
-                    if not Exclude then
-                        exit(true);
+                    if Exclude then
+                        exit(false);
                 end;
 
-                // All
-                wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::All);
-                wpVoucherItem.SetRange("No.", '');
-                if wpVoucherItem.FindLast() then begin
-                    Exclude := wpVoucherItem.Exclude;
-                    if not Exclude then
-                        exit(true);
-                end;
+                exit(true);
             end;
         until TransLine.Next() = 0;
 
 
 
         exit(false);
+    end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnBeforevoidLinePressed', '', false, false)]
+    internal procedure OnBeforevoidLinePressed(var POSTransaction: Record "LSC POS Transaction"; var IsHandled: Boolean)
+    begin
+        IsHandled := false;
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]

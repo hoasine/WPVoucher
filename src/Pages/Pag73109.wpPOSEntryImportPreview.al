@@ -122,6 +122,7 @@ page 73121 "wp POS Entry Import Preview"
             exit;
 
         POSDataEntry.Reset();
+        POSDataEntry.SetRange("Document No.", Rec."Document No.");
         if POSDataEntry.FindLast() then
             NextLineNo := POSDataEntry."Created by Line No." + 1000
         else
