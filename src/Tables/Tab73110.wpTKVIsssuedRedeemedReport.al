@@ -1,6 +1,6 @@
-table 73109 wpIssueVoucherLogLine
+table 73110 wpTKVIsssuedRedeemedReport
 {
-    Caption = 'Issue Voucher Log Line';
+    Caption = 'wpTKVIsssuedRedeemedReport';
     DataClassification = ToBeClassified;
 
     fields

@@ -144,11 +144,10 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
     local procedure InsertVoucherEntryFromPOSEntry(PosEntry: Record "LSC POS Data Entry"): Boolean
     var
         VoucherEntry: Record "LSC Voucher Entries";
+        NextLineNo: Integer;
     begin
         VoucherEntry.Reset();
-        VoucherEntry.SetRange("Store No.", PosEntry."Created in Store No.");
         VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
-
         if VoucherEntry.FindFirst() then begin
             PosEntry."Date Actived" := Today;
             PosEntry.Status := PosEntry.Status::Active;

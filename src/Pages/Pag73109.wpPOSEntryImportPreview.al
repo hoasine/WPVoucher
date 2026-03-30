@@ -123,9 +123,9 @@ page 73121 "wp POS Entry Import Preview"
 
         POSDataEntry.Reset();
         if POSDataEntry.FindLast() then
-            NextLineNo := POSDataEntry."Created by Line No." + 10000
+            NextLineNo := POSDataEntry."Created by Line No." + 1000
         else
-            NextLineNo := 10000;
+            NextLineNo := 1000;
 
         Rec.Reset();
         TotalCount := Rec.Count();
@@ -149,6 +149,7 @@ page 73121 "wp POS Entry Import Preview"
                         POSDataEntry."Entry Type" := Rec."Entry Type";
                         POSDataEntry."Entry Code" := Rec."Entry Code";
                         POSDataEntry.Amount := Rec.Amount;
+                        POSDataEntry."Created by Receipt No." := Rec."Document No.";
                         POSDataEntry."Created by Line No." := NextLineNo;
                         POSDataEntry.Applied := false;
                         POSDataEntry."Applied by Receipt No." := '';
@@ -159,7 +160,7 @@ page 73121 "wp POS Entry Import Preview"
 
                         POSDataEntry.Insert(false);
 
-                        NextLineNo += 10000;
+                        NextLineNo += 1000;
 
                         Rec.Imported := true;
                         Rec.Modify();
