@@ -14,6 +14,27 @@ page 73121 "wp POS Entry Import Preview"
     {
         area(content)
         {
+            group(Options)
+            {
+                Caption = 'Import Options';
+
+                field(SelectedVoucherID; SelectedVoucherID)
+                {
+                    ApplicationArea = All;
+                    Caption = 'Voucher ID';
+                    // TableRelation = wpVoucherMaintenance.ID where(Enabled = const(true));
+                    TableRelation = wpVoucherMaintenance.ID;
+                    ShowMandatory = true;
+                    ToolTip = 'Select Voucher ID before accepting data.';
+
+
+                    trigger OnValidate()
+                    begin
+                        ApplyVoucherIDToPreview();
+                    end;
+                }
+            }
+
             repeater(General)
             {
                 field("Line No."; Rec."Line No.")
@@ -24,6 +45,7 @@ page 73121 "wp POS Entry Import Preview"
                 field("Document No."; Rec."Document No.")
                 {
                     ApplicationArea = All;
+                    Editable = false;
                 }
                 field("Entry Type"; Rec."Entry Type")
                 {
@@ -77,6 +99,12 @@ page 73121 "wp POS Entry Import Preview"
 
                 trigger OnAction()
                 begin
+                    if SelectedVoucherID = '' then
+                        Error('Please select Voucher ID before accepting data.');
+
+                    if HasImportError() then
+                        Error('Cannot import data because one or more lines contain errors. Please review and fix all error lines first.');
+
                     SubmitToPOSDataEntry();
                 end;
             }
@@ -85,6 +113,7 @@ page 73121 "wp POS Entry Import Preview"
 
     var
         ErrorStyle: Text;
+        SelectedVoucherID: Code[20];
         gCU_ConfigProgressBar: Codeunit "Config. Progress Bar";
         RecordsXofYMsg: Label 'Submitting %1 of %2 records';
 
@@ -94,6 +123,32 @@ page 73121 "wp POS Entry Import Preview"
             ErrorStyle := 'Unfavorable'
         else
             ErrorStyle := 'Favorable';
+    end;
+
+    local procedure HasImportError(): Boolean
+    var
+        TempCheck: Record "POS Data Entry Import" temporary;
+    begin
+        TempCheck.Copy(Rec, true);
+        TempCheck.Reset();
+        TempCheck.SetFilter("Error Message", '<>%1', '');
+
+        exit(TempCheck.FindFirst());
+    end;
+
+    local procedure ApplyVoucherIDToPreview()
+    begin
+        if SelectedVoucherID = '' then
+            exit;
+
+        Rec.Reset();
+        if Rec.FindSet() then
+            repeat
+                Rec."Document No." := SelectedVoucherID;
+                Rec.Modify();
+            until Rec.Next() = 0;
+
+        CurrPage.Update(false);
     end;
 
     procedure LoadTempData(var TempImport: Record "POS Data Entry Import" temporary)
@@ -106,6 +161,11 @@ page 73121 "wp POS Entry Import Preview"
                 Rec := TempImport;
                 Rec.Insert();
             until TempImport.Next() = 0;
+    end;
+
+    procedure SetVoucherID(pVoucherID: Code[20])
+    begin
+        SelectedVoucherID := pVoucherID;
     end;
 
     local procedure SubmitToPOSDataEntry()
@@ -122,7 +182,7 @@ page 73121 "wp POS Entry Import Preview"
             exit;
 
         POSDataEntry.Reset();
-        POSDataEntry.SetRange("Document No.", Rec."Document No.");
+        POSDataEntry.SetRange("Document No.", SelectedVoucherID);
         if POSDataEntry.FindLast() then
             NextLineNo := POSDataEntry."Created by Line No." + 1000
         else
@@ -146,11 +206,11 @@ page 73121 "wp POS Entry Import Preview"
                         SkippedCnt += 1
                     else begin
                         POSDataEntry.Init();
-                        POSDataEntry."Document No." := Rec."Document No.";
+                        POSDataEntry."Document No." := SelectedVoucherID;
                         POSDataEntry."Entry Type" := Rec."Entry Type";
                         POSDataEntry."Entry Code" := Rec."Entry Code";
                         POSDataEntry.Amount := Rec.Amount;
-                        POSDataEntry."Created by Receipt No." := Rec."Document No.";
+                        POSDataEntry."Created by Receipt No." := SelectedVoucherID;
                         POSDataEntry."Created by Line No." := NextLineNo;
                         POSDataEntry.Applied := false;
                         POSDataEntry."Applied by Receipt No." := '';

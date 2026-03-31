@@ -117,7 +117,6 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         TempExcelBuffer.DeleteAll();
 
         TempExcelBuffer.NewRow();
-        TempExcelBuffer.AddColumn('Document No', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn('Entry Type', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn('Entry Code', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn('Amount', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
@@ -126,7 +125,6 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         TempExcelBuffer.AddColumn('Currency Code', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
 
         TempExcelBuffer.NewRow();
-        TempExcelBuffer.AddColumn('EVENT-A', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn('TAKA', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn('500ST20816', false, '', false, false, false, '', TempExcelBuffer."Cell Type"::Text);
         TempExcelBuffer.AddColumn(500000, false, '#,##0', false, false, false, '', TempExcelBuffer."Cell Type"::Number);
@@ -149,9 +147,9 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         VoucherEntry.Reset();
         VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
         if VoucherEntry.FindFirst() then begin
-            PosEntry."Date Actived" := Today;
-            PosEntry.Status := PosEntry.Status::Active;
-            PosEntry.Modify();
+            // PosEntry."Date Actived" := Today;
+            // PosEntry.Status := PosEntry.Status::Active;
+            // PosEntry.Modify();
             exit(false);
         end;
 
@@ -173,6 +171,8 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         VoucherEntry."Voucher Type" := PosEntry."Entry Type";
 
         VoucherEntry.Insert(true);
+
+        PosEntry."Date Actived" := Today;
         PosEntry.Status := PosEntry.Status::Active;
         PosEntry.Modify();
         exit(true);
@@ -247,13 +247,12 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             TempImport.Init();
 
             TempImport."Line No." := RowNo - 1;
-            TempImport."Document No." := CopyStr(GetExcelValueAsText(RowNo, 1), 1, MaxStrLen(TempImport."Document No."));
-            TempImport."Entry Type" := CopyStr(GetExcelValueAsText(RowNo, 2), 1, MaxStrLen(TempImport."Entry Type"));
-            TempImport."Entry Code" := CopyStr(GetExcelValueAsText(RowNo, 3), 1, MaxStrLen(TempImport."Entry Code"));
-            TempImport.Amount := GetExcelValueAsDecimal(RowNo, 4);
-            TempImport."Created in Store No." := CopyStr(GetExcelValueAsText(RowNo, 5), 1, MaxStrLen(TempImport."Created in Store No."));
-            TempImport."Expiring Date" := GetExcelValueAsDate(RowNo, 6);
-            TempImport."Currency Code" := CopyStr(GetExcelValueAsText(RowNo, 7), 1, MaxStrLen(TempImport."Currency Code"));
+            TempImport."Entry Type" := CopyStr(GetExcelValueAsText(RowNo, 1), 1, MaxStrLen(TempImport."Entry Type"));
+            TempImport."Entry Code" := CopyStr(GetExcelValueAsText(RowNo, 2), 1, MaxStrLen(TempImport."Entry Code"));
+            TempImport.Amount := GetExcelValueAsDecimal(RowNo, 3);
+            TempImport."Created in Store No." := CopyStr(GetExcelValueAsText(RowNo, 4), 1, MaxStrLen(TempImport."Created in Store No."));
+            TempImport."Expiring Date" := GetExcelValueAsDate(RowNo, 5);
+            TempImport."Currency Code" := CopyStr(GetExcelValueAsText(RowNo, 6), 1, MaxStrLen(TempImport."Currency Code"));
 
             ValidatePreviewRow(TempImport);
 
@@ -402,7 +401,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         CreatedCnt: Integer;
         SkippedCnt: Integer;
     begin
-
+        Clear(PosEntry);
         PosEntry.SetRange(Status, PosEntry.Status::" ");
         PosEntry.SetRange("Document No.", DocumentNo);
 

@@ -5,7 +5,7 @@ page 73111 "Scan Taka Voucher"
     SourceTable = "LSC POS Data Entry";
     SourceTableTemporary = true;
     InsertAllowed = false;
-    DeleteAllowed = false;
+    DeleteAllowed = true;
     ModifyAllowed = false;
 
     layout
@@ -40,6 +40,15 @@ page 73111 "Scan Taka Voucher"
                     Style = Strong;
                 }
 
+                field(VoucherLimit; VoucherLimit)
+                {
+                    Caption = 'Actual Voucher';
+                    ApplicationArea = All;
+                    Editable = false;
+                    Style = Strong;
+                }
+
+
                 field(MaxVoucherQty; MaxVoucherQty)
                 {
                     Caption = 'Max Voucher Qty';
@@ -47,15 +56,6 @@ page 73111 "Scan Taka Voucher"
                     Editable = false;
                     Style = Strong;
                 }
-
-                field(VoucherLimit; VoucherLimit)
-                {
-                    Caption = 'Actual Voucher Get';
-                    ApplicationArea = All;
-                    Editable = false;
-                    Style = Strong;
-                }
-
             }
 
             group(ScannedListGroup)
@@ -107,6 +107,37 @@ page 73111 "Scan Taka Voucher"
     {
         area(Processing)
         {
+            action(DeleteSelected)
+            {
+                Caption = 'Delete';
+                Image = Delete;
+                ApplicationArea = All;
+                Promoted = true;
+                Scope = Repeater;
+
+                trigger OnAction()
+                var
+                    TempRec: Record "LSC POS Data Entry";
+                begin
+                    CurrPage.SetSelectionFilter(TempRec);
+
+                    if TempRec.IsEmpty then
+                        Error('Please select at least one line.');
+
+                    if not Confirm('Delete selected lines?', false) then
+                        exit;
+
+                    if TempRec.FindSet() then
+                        repeat
+                            Rec.Get(TempRec."Entry Type", TempRec."Entry Code");
+                            Rec.Delete();
+                            ScannedCount -= 1;
+                        until TempRec.Next() = 0;
+
+                    CurrPage.Update(false);
+                end;
+            }
+
             action(IssueVoucher)
             {
                 Caption = 'Issue Voucher';
@@ -205,6 +236,11 @@ page 73111 "Scan Taka Voucher"
             exit;
         end;
 
+        if PosEntry."Document No." <> VoucherID then begin
+            Message('Voucher %1 (%2) is not included in promotion program %3.', VoucherCode, PosEntry."Document No.", VoucherID);
+            exit;
+        end;
+
 
         if PosEntry.Status = PosEntry.Status::Redeemed then begin
             Message('Voucher %1 is already redeemed.', VoucherCode);
@@ -225,6 +261,7 @@ page 73111 "Scan Taka Voucher"
         Rec.Reset();
         Rec.SetRange("Entry Code", VoucherCode);
         if not Rec.IsEmpty() then begin
+            Rec.Reset();
             Message('Voucher %1 already scanned in this session.', VoucherCode);
             exit;
         end;

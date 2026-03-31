@@ -199,6 +199,19 @@ page 73107 "Issuance Management"
     {
         area(processing)
         {
+            action(DeleteReceiptRow)
+            {
+                ApplicationArea = All;
+                Caption = 'Delete grid';
+                Image = Delete;
+                Scope = Repeater;
+
+                trigger OnAction()
+                begin
+                    DeleteReceiptFromGrid(Rec."Receipt No.");
+                end;
+            }
+
             action(ClearData)
             {
                 Caption = 'Clear Data';
@@ -265,6 +278,62 @@ page 73107 "Issuance Management"
             }
         }
     }
+
+    local procedure DeleteReceiptFromGrid(ReceiptNo: Code[20])
+    var
+        TempWork: Record "LSC Trans. Sales Entry" temporary;
+    begin
+        if ReceiptNo = '' then
+            exit;
+
+        if not Confirm('Delete all lines for receipt %1?', false, ReceiptNo) then
+            exit;
+
+        // Xóa tất cả dòng của receipt đang chọn khỏi temp grid
+        Rec.Reset();
+        Rec.SetRange("Receipt No.", ReceiptNo);
+        if not Rec.IsEmpty() then
+            Rec.DeleteAll();
+
+        // RẤT QUAN TRỌNG: bỏ filter sau khi DeleteAll
+        Rec.Reset();
+
+        // cập nhật số receipt đã scan
+        if ReceiptCountedFilter > 0 then
+            ReceiptCountedFilter := ReceiptCountedFilter - 1;
+
+        // reset trạng thái validate
+        isValidated := false;
+        isMutipleVoucher := false;
+        ShowVoucherBudgetPart := false;
+
+        // tính lại tổng
+        CalcTotalSale();
+
+        // clear voucher budget
+        TempVoucherBudget.Reset();
+        TempVoucherBudget.DeleteAll();
+
+        // rebuild lại voucher budget từ dữ liệu còn lại trên lưới
+        TempWork.Copy(Rec, true);
+        TempWork.Reset();
+        if TempWork.FindSet() then
+            repeat
+                if TempWork."Voucher Status Temp" = TempWork."Voucher Status Temp"::Valid then
+                    AddVoucherBudgetToTemp(TempWork."Item No.");
+            until TempWork.Next() = 0;
+
+        RefilterVoucherBudget();
+
+        if TempVoucherBudget.IsEmpty() then
+            ShowVoucherBudgetPart := false
+        else begin
+            ShowVoucherBudgetPart := true;
+            CurrPage.VoucherBudgetPart.PAGE.SetTempData(TempVoucherBudget);
+        end;
+
+        CurrPage.Update(false);
+    end;
 
     local procedure IssueTakaVoucher()
     var
@@ -566,34 +635,34 @@ page 73107 "Issuance Management"
             exit;
         end;
 
-        //Kiểm tra member hợp lệ
-        // if TransHeader."Member Card No." = '' then begin
-        //     Message('Receipt:= %1 not found Member Card.', ReceiptNo, TransHeader."Member Card No.");
-        //     exit;
-        // end;
+        // Kiểm tra member hợp lệ
+        if TransHeader."Member Card No." = '' then begin
+            Message('Receipt:= %1 not found Member Card.', ReceiptNo, TransHeader."Member Card No.");
+            exit;
+        end;
 
-        //Kiểm tra member hợp lệ
-        // if TransHeader."Member Card No." <> ScanMemberFilter then begin
-        //     Message('Receipt:= %1 of Card No %2. Not valid', ReceiptNo, TransHeader."Member Card No.");
-        //     exit;
-        // end;
+        // Kiểm tra member hợp lệ
+        if TransHeader."Member Card No." <> ScanMemberFilter then begin
+            Message('Receipt:= %1 of Card No %2. Not valid', ReceiptNo, TransHeader."Member Card No.");
+            exit;
+        end;
 
-        // //Kiểm tra hóa đơn trong ngày
-        // if TransHeader.Date <> Today then begin
-        //     Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
-        //     exit;
-        // end;
+        //Kiểm tra hóa đơn trong ngày
+        if TransHeader.Date <> Today then begin
+            Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
+            exit;
+        end;
 
-        // //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
-        // Clear(logVoucherEntry);
-        // logVoucherEntry.SetRange("Member Card", MembershipCard);
-        // logVoucherEntry.SetRange("Applied Date", Today);
-        // quantityOfDay := logVoucherEntry.Count();
-        // wpVoucherStp.Get();
-        // if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
-        //     Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
-        //     exit;
-        // end;
+        //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
+        Clear(logVoucherEntry);
+        logVoucherEntry.SetRange("Member Card", MembershipCard);
+        logVoucherEntry.SetRange("Applied Date", Today);
+        quantityOfDay := logVoucherEntry.Count();
+        wpVoucherStp.Get();
+        if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
+            Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
+            exit;
+        end;
 
         //Check receipt(in TEMP)
         TempRec.Copy(Rec, true);
