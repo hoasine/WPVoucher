@@ -3,7 +3,12 @@ namespace worldpos.Voucher.Document;
 using worldpos.Voucher.Configuration;
 
 page 73101 wpVoucherMaintenanceCard
+
 {
+
+
+
+
     AdditionalSearchTerms = 'wp,voucher,taka,maintenance,setup';
     Caption = 'Voucher Maintenance Setup';
     PageType = Document;
@@ -13,154 +18,176 @@ page 73101 wpVoucherMaintenanceCard
     DataCaptionFields = ID;
     PromotedActionCategories = 'New,Process,Reports,Navigate';
 
+
+
+
+
     layout
     {
         area(Content)
         {
-            Group(General)
+            group(General)
             {
                 Caption = 'General';
+
                 field(ID; Rec.ID)
                 {
                     ApplicationArea = Basic, Suite;
                     Caption = 'Voucher ID';
-                    ToolTip = 'Specifies the ID for voucher maintenance.';
                     Visible = false;
 
                     trigger OnAssistEdit()
                     begin
-                        If Rec.AssistEdit(xRec) then
-                            CurrPage.Update();
+                        if Rec.AssistEdit(xRec) then
+                            CurrPage.Update(false);
+                        SetEditable();
+
                     end;
                 }
+
                 field(Description; Rec.Description)
                 {
                     ApplicationArea = Basic, Suite;
                     Caption = 'Description';
-                    ToolTip = 'Specifies a description of the voucher allowance.';
                     Importance = Promoted;
+                    Editable = IsPageEditable;
                 }
-                // field("Applicable For"; Rec."Applicable For")
-                // {
-                //     ApplicationArea = Basic, Suite;
-                //     Caption = 'Applicable For';
-                //     ToolTip = 'Specifies the type of the voucher that applicable for.';
-
-                //     trigger OnValidate()
-                //     begin
-                //         checkApplicable();
-                //     end;
-
-                // }
-                // field("Identification Type"; Rec."Identification Type")
-                // {
-                //     ApplicationArea = Basic, Suite;
-                //     Caption = 'Identification Type';
-                //     ToolTip = 'Specifies the type of identification for the voucher.';
-                // }
 
                 group(Period)
                 {
                     field("Validation Period ID"; Rec."Validation Period ID")
                     {
                         ApplicationArea = Basic, Suite;
-                        Caption = 'Validation Period ID';
                         ShowMandatory = true;
-                        ToolTip = 'Specifies the period for which the voucher is valid.';
+                        Editable = IsPageEditable;
+
                         trigger OnValidate()
                         begin
                             Rec.CalcFields("Starting Date", "Ending Date");
                         end;
                     }
+
                     field("Validation Description"; Rec."Validation Description")
                     {
                         ApplicationArea = Basic, Suite;
-                        Caption = 'Validation Description';
-                        ToolTip = 'Specifies the description of the validation period for the voucher.';
                         Importance = Additional;
                     }
+
                     field("Starting Date"; Rec."Starting Date")
                     {
                         ApplicationArea = Basic, Suite;
-                        Caption = 'Starting Date';
-                        ToolTip = 'Specifies the date from which the allowance budget is valid.';
                         Importance = Promoted;
                     }
+
                     field("Ending Date"; Rec."Ending Date")
                     {
                         ApplicationArea = Basic, Suite;
-                        Caption = 'Ending Date';
-                        ToolTip = 'Specifies the date to which the allowance budget is valid';
                         Importance = Promoted;
                     }
                 }
+
                 field("Tender Type Code"; Rec."Tender Type Code")
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Tender Type';
-                    ToolTip = 'Specifies the tender type code for the staff budget.';
+                    Editable = IsPageEditable;
                 }
+
                 field("Tender Type Description"; Rec."Tender Type Description")
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Tender Type Description';
-                    ToolTip = 'Specifies the tender type description for the staff budget.';
                 }
+
                 field("Voucher Budget ID"; Rec."VoucherBudgetID")
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Voucher Budget ID';
-                    ToolTip = 'Specifies the period for which the voucher is valid.';
+                    Editable = IsPageEditable;
                 }
+
                 field("Enable Tracking"; Rec."Enable Tracking")
                 {
                     ApplicationArea = Basic, Suite;
                     Caption = 'Tracking Required';
-                    ToolTip = 'Specifies whether tracking is required for the voucher.';
+                    Editable = IsPageEditable;
                 }
+
                 field(Enabled; Rec.Enabled)
                 {
                     ApplicationArea = Basic, Suite;
                     Caption = 'Enabled';
-                    ToolTip = 'Specifies whether the voucher is enabled.';
+                    Editable = false;
                 }
             }
 
-            Part(wpVoucherMember; wpVoucherMember)
+            part(wpVoucherMember; wpVoucherMember)
             {
                 ApplicationArea = Basic, Suite;
                 Caption = 'Member Setup';
                 SubPageLink = "Voucher ID" = field(ID);
                 UpdatePropagation = Both;
+                Editable = IsPageEditable;
             }
 
-            // Part(wpVoucherVendor; wpVoucherVendor)
-            // {
-            //     ApplicationArea = Basic, Suite;
-            //     Caption = 'Vendor Setup';
-            //     SubPageLink = "Voucher ID" = field(ID);
-            //     UpdatePropagation = Both;
-            // }
-            // Part(wpVoucherRoleLines; wpVoucherRoleLines)
-            // {
-            //     ApplicationArea = Basic, Suite;
-            //     Caption = 'Allowance';
-            //     SubPageLink = "Voucher ID" = field(ID), "Date Filter" = field("Date Filter");
-            //     UpdatePropagation = Both;
-            //     Visible = isStaff;
-            // }
             part(wpVoucheritemdiscstp; wpVoucheritemdiscstp)
             {
                 ApplicationArea = Basic, Suite;
                 Caption = 'Item Setup';
                 SubPageLink = "Voucher ID" = field(ID);
                 UpdatePropagation = Both;
+                Editable = IsPageEditable;
             }
         }
     }
 
     actions
     {
+        area(Processing)
+        {
+            action(EnableVoucher)
+            {
+                ApplicationArea = Basic, Suite;
+                Caption = 'Enable';
+                Image = Approve;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                Enabled = not Rec.Enabled;
+
+                trigger OnAction()
+                begin
+                    if Rec.Enabled then
+                        exit;
+
+                    Rec.Enabled := true;
+                    Rec.Modify(true);
+
+                    SetEditable();
+                    CurrPage.Update(false);
+                end;
+            }
+
+            action(DisableVoucher)
+            {
+                ApplicationArea = Basic, Suite;
+                Caption = 'Disable';
+                Image = Cancel;
+                Promoted = true;
+                PromotedCategory = Process;
+
+                Enabled = Rec.Enabled;
+
+                trigger OnAction()
+                begin
+                    if not Rec.Enabled then
+                        exit;
+
+                    Rec.Enabled := false;
+                    Rec.Modify(true);
+
+                    SetEditable();
+                    CurrPage.Update(false);
+                end;
+            }
+        }
         area(Navigation)
         {
             action(MSRPrefixSetup)
@@ -171,32 +198,27 @@ page 73101 wpVoucherMaintenanceCard
                 Promoted = true;
                 PromotedCategory = Category4;
                 RunObject = Page "LSC Voucher Entries";
-                ToolTip = 'LSC Voucher Entries';
             }
         }
     }
 
-    // trigger OnAfterGetRecord()
-    // begin
-    //     checkApplicable();
-    //     CurrPage.Update(false);
-    // end;
+    var
+        IsPageEditable: Boolean;
 
-    // trigger OnOpenPage()
-    // begin
-    //     checkApplicable();
-    //     CurrPage.Update(false);
-    // end;
+    trigger OnAfterGetCurrRecord()
+    begin
+        SetEditable();
+    end;
 
-    // local procedure checkApplicable()
-    // begin
-    //     if Rec."Applicable For" = Rec."Applicable For"::Staff then
-    //         isStaff := true;
+    trigger OnOpenPage()
+    begin
+        SetEditable();
+    end;
 
-    //     if Rec."Applicable For" = Rec."Applicable For"::Member then
-    //         isStaff := false;
-    // end;
+    local procedure SetEditable()
+    begin
+        IsPageEditable := not Rec.Enabled;
+        CurrPage.Editable(IsPageEditable);
+    end;
 
-    // var
-    //     isStaff: Boolean;
 }
