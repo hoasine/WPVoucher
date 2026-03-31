@@ -7,7 +7,7 @@ report 73100 "Taka Voucher Report"
     PreviewMode = PrintLayout;
     UsageCategory = ReportsAndAnalysis;
     MaximumDatasetSize = 1000000;
-    Caption = 'Taka Voucher Isssued/Redeemed Report';
+    Caption = 'Taka Voucher Issued/Redeemed Report';
 
     dataset
     {
@@ -16,18 +16,17 @@ report 73100 "Taka Voucher Report"
             RequestFilterFields = "Code";
             DataItemTableView = sorting("Code");
 
-
             dataitem(itemDataEntry; "LSC POS Data Entry")
             {
                 DataItemLinkReference = Data;
+                DataItemLink = "Entry Type" = FIELD(Code);
 
                 column(USERID; UserId) { }
                 column(COMPANYNAME; CompanyName) { }
                 column(DatePrint; DatePrint) { }
-                column(StartDateFilter; DateTarget) { }
                 column(brdnm; itemSpecialGrpDesc) { }
-                column(recDate; DateFormat) { }
 
+                column("DateCreated"; "Date Created") { }
                 column("DateActived"; "Date Actived") { }
                 column("VoucherAmount"; "Amount") { }
                 column("ExpiringDate"; "Expiring Date") { }
@@ -36,22 +35,23 @@ report 73100 "Taka Voucher Report"
                 column("TransactionNo"; "TransactionNo") { }
                 column("PosTerminal"; "PosTerminal") { }
                 column("Qty"; "Qty") { }
+                column("EntryCode"; "Entry Code") { }
+                column("DocumentNo"; "Document No.") { }
+                column("DateCreatedd"; DateCreatedFilter) { }
 
                 trigger OnPreDataItem()
                 begin
-                    // if DateFilter = '' then
-                    //     Error('Please input Date!');
+                    if DateCreatedFilter <> '' then
+                        itemDataEntry.SetFilter("Date Created", DateCreatedFilter);
 
-                    // itemDataEntry.SetFilter("Date Actived", DateFilter); //Issue
-                    // itemDataEntry.SetFilter("Date Redeemed", DateFilter); //Redeemed
+                    if VoucherTypeFilter <> '' then
+                        Data.SetFilter("Code", VoucherTypeFilter);
 
-                    if VoucherNoFilter = '' then begin
+                    if VoucherNoFilter <> '' then
                         itemDataEntry.SetFilter("Entry Code", VoucherNoFilter);
-                    end;
 
-                    if DocumentNoFilter = '' then begin
+                    if DocumentNoFilter <> '' then
                         itemDataEntry.SetFilter("Document No.", DocumentNoFilter);
-                    end;
 
                     DatePrint := Format(Today(), 0, '<Day,2>/<Month,2>/<Year4>');
                 end;
@@ -60,9 +60,12 @@ report 73100 "Taka Voucher Report"
                 var
                     voucherEntries: Record "LSC Voucher Entries";
                 begin
-                    Clear(voucherEntries);
-                    voucherEntries.SetRange("Voucher No.", itemDataEntry."Entry Code");
-                    voucherEntries.SetRange("Entry Type", 1); //Status Redeemp
+                    Clear(TransactionNo);
+                    Clear(PosTerminal);
+                    Qty := 0;
+
+                    voucherEntries.SetRange("Voucher No.", "Entry Code");
+                    voucherEntries.SetRange("Entry Type", 1); // Redeemed
                     if voucherEntries.FindFirst() then begin
                         TransactionNo := voucherEntries."Transaction No.";
                         PosTerminal := voucherEntries."POS Terminal No.";
@@ -73,11 +76,7 @@ report 73100 "Taka Voucher Report"
 
             trigger OnPreDataItem()
             begin
-                data.SetRange("Enable/ Activate Taka Voucher", true);
-
-                if VoucherTypeFilter = '' then begin
-                    Data.SetFilter("Code", VoucherTypeFilter);
-                end;
+                Data.SetRange("Enable/ Activate Taka Voucher", true);
             end;
         }
     }
@@ -92,26 +91,26 @@ report 73100 "Taka Voucher Report"
                 {
                     field("Voucher Type"; VoucherTypeFilter)
                     {
-                        TableRelation = "LSC POS Data Entry";
+                        TableRelation = "LSC POS Data Entry Type";
+                        Caption = 'Voucher Type';
                     }
-                    // field("Date"; DateFilter)
-                    // {
-                    //     trigger OnValidate()
-                    //     begin
-                    //         ApplicationManagement.MakeDateFilter(DateFilter);
-                    //     end;
-                    // }
+                    field("Date Created"; DateCreatedFilter)
+                    {
+                        Caption = 'Date Created';
+                        trigger OnValidate()
+                        begin
+                            ApplicationManagement.MakeDateFilter(DateCreatedFilter);
+                        end;
+                    }
                     field("Document No"; DocumentNoFilter)
                     {
+                        Caption = 'Document No.';
                     }
                     field("Voucher No"; VoucherNoFilter)
                     {
+                        Caption = 'Voucher No.';
                         TableRelation = "LSC Voucher Entries";
                     }
-                    // field("Special Group (Brand)"; SpecialGroupFilter)
-                    // {
-                    //     TableRelation = "LSC Item Special Groups";
-                    // }
                 }
             }
         }
@@ -123,57 +122,22 @@ report 73100 "Taka Voucher Report"
         {
             Type = Excel;
             LayoutFile = 'src/ReportLayouts/Excel/Rep.73100.TakaVoucherIsssuedRedeemedReport.xlsx';
-            Caption = 'Taka Voucher Isssued/Redeemed Report';
+            Caption = 'Taka Voucher Issued/Redeemed Report';
             Summary = 'src/ReportLayouts/Excel/Rep.73100.TakaVoucherIsssuedRedeemedReport.xlsx';
         }
     }
 
-    // procedure ParseDateRangeOfFilter(DateRange: Text): Text
-    // var
-    //     StartStr: Text[20];
-    //     EndStr: Text[20];
-    //     StartDate: Date;
-    //     EndDate: Date;
-    //     SeparatorPos: Integer;
-    //     ResultText: Text;
-    // begin
-    //     SeparatorPos := StrPos(DateRange, '..');
-
-    //     if SeparatorPos > 0 then begin
-    //         // Có khoảng ngày
-    //         StartStr := CopyStr(DateRange, 1, SeparatorPos - 1);
-    //         EndStr := CopyStr(DateRange, SeparatorPos + 2);
-
-    //         Evaluate(StartDate, StartStr); // chuyển sang kiểu Date
-    //         Evaluate(EndDate, EndStr);
-
-    //         ResultText := Format(StartDate, 0, '<Day,2>/<Month,2>/<Year4>')
-    //             + '-' +
-    //             Format(EndDate, 0, '<Day,2>/<Month,2>/<Year4>');
-    //     end else begin
-    //         // Chỉ có 1 ngày
-    //         Evaluate(StartDate, DateRange);
-    //         ResultText := Format(StartDate, 0, '<Day,2>/<Month,2>/<Year4>');
-    //     end;
-
-    //     exit(ResultText);
-    // end;
-
     var
         itemSpecialGrpLink: Record "LSC Item/Special Group Link";
         itemSpecialGrpDesc: Text[30];
-        DateFilter: text[100];
-        ApplicationManagement: Codeunit "Filter Tokens";
-        DatePrint: text[100];
-        DateTarget: text[100];
-        DateFormat: text[100];
-        SpecialGroupFilter: text[100];
-        DocumentNoFilter: text[100];
-        VoucherNoFilter: text[100];
-        Brand: text[100];
+        DatePrint: Text[100];
+        DateCreatedFilter: Text[100];
+        DocumentNoFilter: Code[20];
+        VoucherNoFilter: Code[20];
+        VoucherTypeFilter: Code[20];
         TransactionNo: Integer;
-        PosTerminal: text[100];
-        VoucherTypeFilter: text[100];
+        PosTerminal: Text[100];
         Qty: Integer;
+        ApplicationManagement: Codeunit "Filter Tokens";
+        Brand: Text[100];
 }
-
