@@ -202,7 +202,7 @@ page 73107 "Issuance Management"
             action(DeleteReceiptRow)
             {
                 ApplicationArea = All;
-                Caption = 'Delete grid';
+                Caption = 'Delete';
                 Image = Delete;
                 Scope = Repeater;
 

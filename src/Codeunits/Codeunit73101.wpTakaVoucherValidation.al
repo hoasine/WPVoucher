@@ -1,5 +1,7 @@
 codeunit 73101 "wpTakaVoucherValidation"
 {
+    var
+        TransLine: Record "LSC Pos Trans. Line";
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeDataEntryCheckAmount', '', false, false)]
     local procedure OnBeforeDataEntryCheckAmount(
@@ -17,6 +19,8 @@ codeunit 73101 "wpTakaVoucherValidation"
         PosDataEntry: Record "LSC POS Data Entry";
         VoucherID: Code[20];
         MemberCardNo: Code[20];
+
+
     begin
         // Lấy Pos data entry
         PosDataEntry.Reset();
@@ -78,15 +82,24 @@ codeunit 73101 "wpTakaVoucherValidation"
             end;
         end;
 
-        // Item check
-        if not ValidateTrans(Line."Receipt No.", VoucherID) then begin
-            ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
-            IsHandled := true;
-            ReturnValue := false;
-        end;
+        Clear(TransLine);
+        TransLine.Reset();
+        TransLine.SetRange("Receipt No.", Line."Receipt No.");
+        TransLine.SetRange("Entry Status", TransLine."Entry Status"::" ");
+        TransLine.SetRange("Entry Type", TransLine."Entry Type"::Item);
+        if TransLine.FindSet() then
+            repeat
+                if not ValidateTrans(TransLine.Number, VoucherID) then begin
+                    ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
+                    IsHandled := true;
+                    ReturnValue := false;
+                    exit;
+                end;
+            until TransLine.Next() = 0;
     end;
 
-    local procedure VoucherBelongsToMember(EntryCode: Code[20]; MemberCardNo: Code[20]): Boolean
+    local procedure VoucherBelongsToMember(EntryCode: Code[20];
+MemberCardNo: Code[20]): Boolean
     var
         IssueLog: Record wpIssueVoucherLog;
         IssueLogLine: Record wpIssueVoucherLogLine;
@@ -106,100 +119,77 @@ codeunit 73101 "wpTakaVoucherValidation"
         exit(IssueLog."Member Card" = MemberCardNo);
     end;
 
-    local procedure ValidateTrans(ReceiptNo: Code[20]; VoucherID: Code[20]): Boolean
+    local procedure ValidateTrans(itemCode: Code[20]; VoucherID: Code[20]): Boolean
     var
-        TransLine: Record "LSC Pos Trans. Line";
         wpVoucherItem: Record wpVoucherItemDiscStp;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         Item: Record Item;
         Exclude: Boolean;
-        PosDataEntry: Record "LSC POS Data Entry";
     begin
-
-
-
-
-        PosDataEntry.Reset();
-        PosDataEntry."Entry Code" := '';
-
-        TransLine.Reset();
-        TransLine.SetRange("Receipt No.", ReceiptNo);
-        // Filter item line
-        TransLine.SetRange("Entry Type", TransLine."Entry Type"::Item);
-        if not TransLine.FindSet() then
-            exit(false);
-
-        repeat
-            if Item.Get(TransLine.Number) then begin
-
-                // Item level
-                Exclude := false;
-                wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
-                wpVoucherItem.SetRange("No.", TransLine.Number);
-                if wpVoucherItem.FindLast() then begin
-                    Exclude := wpVoucherItem.Exclude;
-                    if Exclude then
-                        exit(false);
-                end;
-
-                // Special Group
-                ItemSpecialGroupLink.Reset();
-                ItemSpecialGroupLink.SetRange("Item No.", TransLine.Number);
-                if ItemSpecialGroupLink.FindSet() then
-                    repeat
-                        wpVoucherItem.Reset();
-                        wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Special Group");
-                        wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
-                        if wpVoucherItem.FindLast() then begin
-                            Exclude := wpVoucherItem.Exclude;
-                            if Exclude then
-                                exit(false);
-                        end;
-                    until ItemSpecialGroupLink.Next() = 0;
-
-                // Retail Product Group
-                wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
-                wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
-                if wpVoucherItem.FindLast() then begin
-                    Exclude := wpVoucherItem.Exclude;
-                    if Exclude then
-                        exit(false);
-                end;
-
-                // Item Category
-                wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
-                wpVoucherItem.SetRange("No.", Item."Item Category Code");
-                if wpVoucherItem.FindLast() then begin
-                    Exclude := wpVoucherItem.Exclude;
-                    if Exclude then
-                        exit(false);
-                end;
-
-                // Division
-                wpVoucherItem.Reset();
-                wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
-                wpVoucherItem.SetRange("No.", Item."LSC Division Code");
-                if wpVoucherItem.FindLast() then begin
-                    Exclude := wpVoucherItem.Exclude;
-                    if Exclude then
-                        exit(false);
-                end;
-
-                exit(true);
+        if Item.Get(itemCode) then begin
+            // Item level
+            Exclude := true;
+            wpVoucherItem.Reset();
+            wpVoucherItem.SetRange("Voucher ID", VoucherID);
+            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
+            wpVoucherItem.SetRange("No.", itemCode);
+            if wpVoucherItem.FindLast() then begin
+                Exclude := wpVoucherItem.Exclude;
+                if Exclude then
+                    exit(false);
             end;
-        until TransLine.Next() = 0;
 
+            // Special Group
+            ItemSpecialGroupLink.Reset();
+            ItemSpecialGroupLink.SetRange("Item No.", itemCode);
+            if ItemSpecialGroupLink.FindSet() then
+                repeat
+                    wpVoucherItem.Reset();
+                    wpVoucherItem.SetRange("Voucher ID", VoucherID);
+                    wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Special Group");
+                    wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
+                    if wpVoucherItem.FindLast() then begin
+                        Exclude := wpVoucherItem.Exclude;
+                        if Exclude then
+                            exit(false);
+                    end;
+                until ItemSpecialGroupLink.Next() = 0;
 
+            // Retail Product Group
+            wpVoucherItem.Reset();
+            wpVoucherItem.SetRange("Voucher ID", VoucherID);
+            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
+            wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
+            if wpVoucherItem.FindLast() then begin
+                Exclude := wpVoucherItem.Exclude;
+                if Exclude then
+                    exit(false);
+            end;
 
-        exit(false);
+            // Item Category
+            wpVoucherItem.Reset();
+            wpVoucherItem.SetRange("Voucher ID", VoucherID);
+            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
+            wpVoucherItem.SetRange("No.", Item."Item Category Code");
+            if wpVoucherItem.FindLast() then begin
+                Exclude := wpVoucherItem.Exclude;
+                if Exclude then
+                    exit(false);
+            end;
+
+            // Division
+            wpVoucherItem.Reset();
+            wpVoucherItem.SetRange("Voucher ID", VoucherID);
+            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
+            wpVoucherItem.SetRange("No.", Item."LSC Division Code");
+            if wpVoucherItem.FindLast() then begin
+                Exclude := wpVoucherItem.Exclude;
+                if Exclude then
+                    exit(false);
+            end;
+        end;
+
+        exit(true);
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnBeforevoidLinePressed', '', false, false)]
