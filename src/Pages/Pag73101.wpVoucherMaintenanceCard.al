@@ -3,12 +3,7 @@ namespace worldpos.Voucher.Document;
 using worldpos.Voucher.Configuration;
 
 page 73101 wpVoucherMaintenanceCard
-
 {
-
-
-
-
     AdditionalSearchTerms = 'wp,voucher,taka,maintenance,setup';
     Caption = 'Voucher Maintenance Setup';
     PageType = Document;
@@ -17,10 +12,6 @@ page 73101 wpVoucherMaintenanceCard
     SourceTableView = sorting(ID);
     DataCaptionFields = ID;
     PromotedActionCategories = 'New,Process,Reports,Navigate';
-
-
-
-
 
     layout
     {
@@ -33,22 +24,18 @@ page 73101 wpVoucherMaintenanceCard
                 field(ID; Rec.ID)
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Voucher ID';
                     Visible = false;
 
                     trigger OnAssistEdit()
                     begin
                         if Rec.AssistEdit(xRec) then
-                            CurrPage.Update(false);
-                        SetEditable();
-
+                            CurrPage.Update();
                     end;
                 }
 
                 field(Description; Rec.Description)
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Description';
                     Importance = Promoted;
                     Editable = IsPageEditable;
                 }
@@ -70,19 +57,16 @@ page 73101 wpVoucherMaintenanceCard
                     field("Validation Description"; Rec."Validation Description")
                     {
                         ApplicationArea = Basic, Suite;
-                        Importance = Additional;
                     }
 
                     field("Starting Date"; Rec."Starting Date")
                     {
                         ApplicationArea = Basic, Suite;
-                        Importance = Promoted;
                     }
 
                     field("Ending Date"; Rec."Ending Date")
                     {
                         ApplicationArea = Basic, Suite;
-                        Importance = Promoted;
                     }
                 }
 
@@ -106,14 +90,12 @@ page 73101 wpVoucherMaintenanceCard
                 field("Enable Tracking"; Rec."Enable Tracking")
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Tracking Required';
                     Editable = IsPageEditable;
                 }
 
                 field(Enabled; Rec.Enabled)
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Enabled';
                     Editable = false;
                 }
             }
@@ -144,55 +126,43 @@ page 73101 wpVoucherMaintenanceCard
         {
             action(EnableVoucher)
             {
-                ApplicationArea = Basic, Suite;
                 Caption = 'Enable';
                 Image = Approve;
                 Promoted = true;
                 PromotedCategory = Process;
 
-                Enabled = not Rec.Enabled;
+                Enabled = EnableButtonVisible;
 
                 trigger OnAction()
                 begin
-                    if Rec.Enabled then
-                        exit;
-
                     Rec.Enabled := true;
                     Rec.Modify(true);
-
-                    SetEditable();
-                    CurrPage.Update(false);
+                    CurrPage.Update(true);
                 end;
             }
 
             action(DisableVoucher)
             {
-                ApplicationArea = Basic, Suite;
                 Caption = 'Disable';
                 Image = Cancel;
                 Promoted = true;
                 PromotedCategory = Process;
 
-                Enabled = Rec.Enabled;
+                Enabled = DisableButtonVisible;
 
                 trigger OnAction()
                 begin
-                    if not Rec.Enabled then
-                        exit;
-
                     Rec.Enabled := false;
                     Rec.Modify(true);
-
-                    SetEditable();
-                    CurrPage.Update(false);
+                    CurrPage.Update(true);
                 end;
             }
         }
+
         area(Navigation)
         {
             action(MSRPrefixSetup)
             {
-                ApplicationArea = Basic, Suite;
                 Caption = 'LSC Voucher Entries';
                 Image = CreditCard;
                 Promoted = true;
@@ -204,21 +174,25 @@ page 73101 wpVoucherMaintenanceCard
 
     var
         IsPageEditable: Boolean;
+        EnableButtonVisible: Boolean;
+        DisableButtonVisible: Boolean;
 
-    trigger OnAfterGetCurrRecord()
+    trigger OnAfterGetRecord()
     begin
-        SetEditable();
+        if Rec.Enabled then begin
+            CurrPage.Editable := false;
+            IsPageEditable := false;
+        end else begin
+            CurrPage.Editable := true;
+            IsPageEditable := true;
+        end;
+
+        EnableButtonVisible := not Rec.Enabled;
+        DisableButtonVisible := Rec.Enabled;
     end;
 
     trigger OnOpenPage()
     begin
-        SetEditable();
+        CurrPage.Update();
     end;
-
-    local procedure SetEditable()
-    begin
-        IsPageEditable := not Rec.Enabled;
-        CurrPage.Editable(IsPageEditable);
-    end;
-
 }

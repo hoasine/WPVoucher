@@ -39,11 +39,11 @@ report 73100 "Taka Voucher Report"
 
                 trigger OnPreDataItem()
                 begin
-                    if DateFilter = '' then
-                        Error('Please input Date!');
+                    // if DateFilter = '' then
+                    //     Error('Please input Date!');
 
-                    itemDataEntry.SetFilter("Date Actived", DateFilter); //Issue
-                    itemDataEntry.SetFilter("Date Redeemed", DateFilter); //Redeemed
+                    // itemDataEntry.SetFilter("Date Actived", DateFilter); //Issue
+                    // itemDataEntry.SetFilter("Date Redeemed", DateFilter); //Redeemed
 
                     if VoucherNoFilter = '' then begin
                         itemDataEntry.SetFilter("Entry Code", VoucherNoFilter);
@@ -52,6 +52,8 @@ report 73100 "Taka Voucher Report"
                     if DocumentNoFilter = '' then begin
                         itemDataEntry.SetFilter("Document No.", DocumentNoFilter);
                     end;
+
+                    DatePrint := Format(Today(), 0, '<Day,2>/<Month,2>/<Year4>');
                 end;
 
                 trigger OnAfterGetRecord()
@@ -92,13 +94,13 @@ report 73100 "Taka Voucher Report"
                     {
                         TableRelation = "LSC POS Data Entry";
                     }
-                    field("Date"; DateFilter)
-                    {
-                        trigger OnValidate()
-                        begin
-                            ApplicationManagement.MakeDateFilter(DateFilter);
-                        end;
-                    }
+                    // field("Date"; DateFilter)
+                    // {
+                    //     trigger OnValidate()
+                    //     begin
+                    //         ApplicationManagement.MakeDateFilter(DateFilter);
+                    //     end;
+                    // }
                     field("Document No"; DocumentNoFilter)
                     {
                     }
