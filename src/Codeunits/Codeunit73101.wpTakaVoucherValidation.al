@@ -1,6 +1,8 @@
 codeunit 73101 "wpTakaVoucherValidation"
 {
     var
+        itemValidList: text[500];
+        totalAmountItemValid: Decimal;
         TransLine: Record "LSC Pos Trans. Line";
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeDataEntryCheckAmount', '', false, false)]
@@ -19,8 +21,6 @@ codeunit 73101 "wpTakaVoucherValidation"
         PosDataEntry: Record "LSC POS Data Entry";
         VoucherID: Code[20];
         MemberCardNo: Code[20];
-
-
     begin
         // Lấy Pos data entry
         PosDataEntry.Reset();
@@ -29,7 +29,6 @@ codeunit 73101 "wpTakaVoucherValidation"
             ErrorTxt := 'Not found POS Data Entry Table.';
             exit;
         end;
-
 
         // check voucher phải ở status redeemp
         if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
@@ -55,17 +54,15 @@ codeunit 73101 "wpTakaVoucherValidation"
             exit;
         end;
 
-
+        // Kiểm tra voucher có thuộc chương trình VoucherID setup không
         VoucherID := VoucherEntry."Voucher Id";
         if VoucherID = '' then begin
             ErrorTxt := 'Not found Voucher Id.';
             exit;
         end;
 
-        // Check coi member này có dùng được voucher này không
-
+        // Check member này có dùng được voucher này không
         MemberCardNo := Trans."Member Card No.";
-
         if MemberCardNo = '' then begin
             ErrorTxt := 'Please input Member Card before using voucher.';
             IsHandled := true;
@@ -82,6 +79,8 @@ codeunit 73101 "wpTakaVoucherValidation"
             end;
         end;
 
+        totalAmountItemValid := 0;
+
         Clear(TransLine);
         TransLine.Reset();
         TransLine.SetRange("Receipt No.", Line."Receipt No.");
@@ -90,12 +89,24 @@ codeunit 73101 "wpTakaVoucherValidation"
         if TransLine.FindSet() then
             repeat
                 if not ValidateTrans(TransLine.Number, VoucherID) then begin
-                    ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
-                    IsHandled := true;
-                    ReturnValue := false;
-                    exit;
+                    //không thỏa điều kiên thì bỏ qua
+                    // ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
+                    // IsHandled := true;
+                    // ReturnValue := false;
+                    // exit;
+                end else begin
+                    //tính tổng item đủ điều kiện
+                    itemValidList := itemValidList + TransLine.Number + ';';
+                    totalAmountItemValid := totalAmountItemValid + TransLine.Amount;
                 end;
             until TransLine.Next() = 0;
+
+        if (DataEntry.Amount < totalAmountItemValid) then begin
+            ErrorTxt := 'Total amount of Items:= ' + itemValidList + ' not eligible for use.';
+            IsHandled := true;
+            ReturnValue := false;
+            exit;
+        end;
     end;
 
     local procedure VoucherBelongsToMember(EntryCode: Code[20];

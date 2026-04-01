@@ -420,7 +420,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             SkippedCnt);
     end;
 
-    trigger OnAfterGetCurrRecord()
+    trigger OnOpenPage()
     var
         POSDataEntryType: Record "LSC POS Data Entry Type";
     begin
