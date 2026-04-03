@@ -478,7 +478,7 @@ page 73107 "Issuance Management"
 
                 if salesEntry.FindFirst() then begin
                     salesEntry.LockTable();
-                    salesEntry."Voucher Status" := 'Redeemed';
+                    salesEntry."Is Redeemption" := true;
                     salesEntry."Voucher ID" := VoucherID;
                     salesEntry."Voucher Status Temp" := salesEntry."Voucher Status Temp"::Valid;
                     salesEntry.Modify(true);
@@ -683,7 +683,7 @@ page 73107 "Issuance Management"
             exit;
         end;
 
-        if (SourceSalesEntry."Voucher Status" <> '') then begin //Loại trừ bill đã sử dụng
+        if (SourceSalesEntry."Is Redeemption" = true) then begin //Loại trừ bill đã sử dụng
             Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
             exit;
         end;

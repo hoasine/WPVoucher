@@ -101,16 +101,44 @@ codeunit 73101 "wpTakaVoucherValidation"
                 end;
             until TransLine.Next() = 0;
 
-        if (DataEntry.Amount < totalAmountItemValid) then begin
+        if (DataEntry.Amount > totalAmountItemValid) then begin
             ErrorTxt := 'Total amount of Items:= ' + itemValidList + ' not eligible for use.';
             IsHandled := true;
             ReturnValue := false;
             exit;
         end;
+
+        TransLine."Is Used VC" := true;
+        TransLine."Voucher ID of Used" := VoucherID;
+        TransLine.Modify();
     end;
 
-    local procedure VoucherBelongsToMember(EntryCode: Code[20];
-MemberCardNo: Code[20]): Boolean
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnAfterVoidLine', '', false, false)]
+    local procedure wp_OnVoidLine(var POSTransaction: Record "LSC POS Transaction"; var POSTransLine: Record "LSC POS Trans. Line")
+    var
+        lposTranLine: Record "LSC POS Trans. Line";
+    begin
+        lposTranLine.Reset();
+        lposTranLine.SetRange("Receipt No.", POSTransaction."Receipt No.");
+        lposTranLine.SetRange("Number", POSTransLine."Number");
+        lposTranLine.SetRange("Entry Type", POSTransLine."Entry Type"::Item);
+        lposTranLine.SetRange("Entry Status", POSTransLine."Entry Status");
+        lposTranLine.SetRange("Line No.", POSTransLine."Line No.");
+        if lposTranLine.FindFirst() then begin
+            lposTranLine."Is Used VC" := false;
+            lposTranLine."Voucher ID of Used" := '';
+            lposTranLine.Modify();
+        end;
+    end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'SalesEntryOnBeforeInsertV2', '', false, false)]
+    local procedure wp_OnInsertSalesTransaction(var pPOSTransLineTemp: Record "LSC POS Trans. Line" temporary; var pTransSalesEntry: Record "LSC Trans. Sales Entry")
+    begin
+        pTransSalesEntry."Is Used VC" := pPOSTransLineTemp."Is Used VC";
+        pTransSalesEntry."Voucher ID of Used" := pPOSTransLineTemp."Voucher ID of Used";
+    end;
+
+    local procedure VoucherBelongsToMember(EntryCode: Code[20]; MemberCardNo: Code[20]): Boolean
     var
         IssueLog: Record wpIssueVoucherLog;
         IssueLogLine: Record wpIssueVoucherLogLine;
@@ -203,11 +231,11 @@ MemberCardNo: Code[20]): Boolean
         exit(true);
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnBeforevoidLinePressed', '', false, false)]
-    internal procedure OnBeforevoidLinePressed(var POSTransaction: Record "LSC POS Transaction"; var IsHandled: Boolean)
-    begin
-        IsHandled := false;
-    end;
+    // [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnBeforevoidLinePressed', '', false, false)]
+    // internal procedure OnBeforevoidLinePressed(var POSTransaction: Record "LSC POS Transaction"; var IsHandled: Boolean)
+    // begin
+    //     IsHandled := false;
+    // end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
     local procedure OnBeforeInsertPaymentEntryV2(var POSTransaction: Record "LSC POS Transaction"; var POSTransLineTemp: Record "LSC POS Trans. Line" temporary; var TransPaymentEntry: Record "LSC Trans. Payment Entry")
@@ -234,8 +262,5 @@ MemberCardNo: Code[20]): Boolean
                 end;
             until TransInfoCodeEntry.Next() = 0;
     end;
-
-
-    //Check status voucher member, redeemp, expiredate
 }
 
