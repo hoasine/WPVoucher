@@ -688,6 +688,16 @@ page 73107 "Issuance Management"
             exit;
         end;
 
+        if TransHeader."Sale Is Return Sale" then begin
+            Message('The bill %1 already returned. Please use another bill.', ReceiptNo);
+            exit;
+        end;
+
+        if TransHeader."Sale Is Cancel Sale" then begin
+            Message('The bill %1 already canceled. Please use another bill.', ReceiptNo);
+            exit;
+        end;
+
         repeat
             Rec.Init();
             Rec.TransferFields(SourceSalesEntry);
