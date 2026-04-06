@@ -1,10 +1,5 @@
 codeunit 73101 "wpTakaVoucherValidation"
 {
-    var
-        itemValidList: text[500];
-        totalAmountItemValid: Decimal;
-        TransLine: Record "LSC Pos Trans. Line";
-
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeDataEntryCheckAmount', '', false, false)]
     local procedure OnBeforeDataEntryCheckAmount(
     MgrKeyActive: Boolean;
@@ -19,8 +14,14 @@ codeunit 73101 "wpTakaVoucherValidation"
     var
         VoucherEntry: Record "LSC Voucher Entries";
         PosDataEntry: Record "LSC POS Data Entry";
+        TransLine: Record "LSC Pos Trans. Line";
+        TransLineTender: Record "LSC Pos Trans. Line";
         VoucherID: Code[20];
         MemberCardNo: Code[20];
+        itemValidList: text[500];
+        totalAmountItemValid: Decimal;
+        totalAmountTender: Decimal;
+        calAmountCurrent: Decimal;
     begin
         // Lấy Pos data entry
         PosDataEntry.Reset();
@@ -79,8 +80,8 @@ codeunit 73101 "wpTakaVoucherValidation"
             end;
         end;
 
+        //Lấy tổng giá trị item hiện có
         totalAmountItemValid := 0;
-
         Clear(TransLine);
         TransLine.Reset();
         TransLine.SetRange("Receipt No.", Line."Receipt No.");
@@ -88,24 +89,42 @@ codeunit 73101 "wpTakaVoucherValidation"
         TransLine.SetRange("Entry Type", TransLine."Entry Type"::Item);
         if TransLine.FindSet() then
             repeat
-                if not ValidateTrans(TransLine.Number, VoucherID) then begin
-                    //không thỏa điều kiên thì bỏ qua
-                    // ErrorTxt := 'This voucher cannot be applied. No qualifying items found in the transaction.';
-                    // IsHandled := true;
-                    // ReturnValue := false;
-                    // exit;
-                end else begin
-                    //tính tổng item đủ điều kiện
+                if ValidateTrans(TransLine.Number, VoucherID) then begin
                     itemValidList := itemValidList + TransLine.Number + ';';
                     totalAmountItemValid := totalAmountItemValid + TransLine.Amount;
                 end;
             until TransLine.Next() = 0;
 
-        if (DataEntry.Amount > totalAmountItemValid) then begin
-            ErrorTxt := 'Total amount of Items:= ' + itemValidList + ' not eligible for use.';
+        if totalAmountItemValid = 0 then begin
+            ErrorTxt := 'Tất cả Item không đủ điều kiện đổi voucher';
             IsHandled := true;
             ReturnValue := false;
-            exit;
+        end;
+
+        //Lấy tổng giá trị voucher đã applied
+        totalAmountTender := 0;
+        Clear(TransLineTender);
+        TransLineTender.Reset();
+        TransLineTender.SetRange("Receipt No.", Line."Receipt No.");
+        TransLineTender.SetFilter("Line No.", '<>%1', Line."Line No.");//Number payment = tender code taka voucher
+        TransLineTender.SetRange("Entry Status", TransLineTender."Entry Status"::" ");
+        TransLineTender.SetRange("Entry Type", TransLineTender."Entry Type"::Payment);
+        TransLineTender.CalcSums(TransLineTender.Amount);
+        totalAmountTender := TransLineTender.Amount;
+
+        totalAmountTender := totalAmountTender + VoucherEntry."Remaining Amount Now";
+
+        // 	tender - amount 	
+        //  TH1 	 500-300 	 cal > 0 => Lấy reaming - cal 
+        //  TH2  	 500-500 	 cal = 0 => lấy giá trị reaming voucher 
+        //  TH3 	 500-700 	 cal < 0 => lấy giá trị reaming voucher 
+        //  TH3  	 Amount = 0 	 Không đủ điều kiện 
+
+        calAmountCurrent := totalAmountTender - totalAmountItemValid;
+        if calAmountCurrent <= 0 then begin
+            RLineAmount := VoucherEntry."Remaining Amount Now";
+        end else if calAmountCurrent > 0 then begin //Chỉ lấy amount đủ cho item đủ điều kiện
+            RLineAmount := VoucherEntry."Remaining Amount Now" - calAmountCurrent;
         end;
 
         TransLine."Is Used VC" := true;
