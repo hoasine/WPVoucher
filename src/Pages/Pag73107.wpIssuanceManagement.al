@@ -659,9 +659,11 @@ page 73107 "Issuance Management"
         logVoucherEntry.SetRange("Applied Date", Today);
         quantityOfDay := logVoucherEntry.Count();
         wpVoucherStp.Get();
-        if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
-            Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
-            exit;
+        if wpVoucherStp."Quantity Exchange of Day" <> 0 then begin
+            if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
+                Message('Customers who exceed %1 time can exchange in 1 day', wpVoucherStp."Quantity Exchange of Day");
+                exit;
+            end;
         end;
 
         //Check receipt(in TEMP)

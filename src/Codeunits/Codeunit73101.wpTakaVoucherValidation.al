@@ -62,23 +62,23 @@ codeunit 73101 "wpTakaVoucherValidation"
             exit;
         end;
 
-        // Check member này có dùng được voucher này không
-        MemberCardNo := Trans."Member Card No.";
-        if MemberCardNo = '' then begin
-            ErrorTxt := 'Please input Member Card before using voucher.';
-            IsHandled := true;
-            ReturnValue := false;
-            exit;
-        end;
+        // // Check member này có dùng được voucher này không
+        // MemberCardNo := Trans."Member Card No.";
+        // if MemberCardNo = '' then begin
+        //     ErrorTxt := 'Please input Member Card before using voucher.';
+        //     IsHandled := true;
+        //     ReturnValue := false;
+        //     exit;
+        // end;
 
-        if MemberCardNo <> '' then begin
-            if not VoucherBelongsToMember(DataEntry."Entry Code", MemberCardNo) then begin
-                ErrorTxt := StrSubstNo('Voucher %1 does not belong to this member.', DataEntry."Entry Code");
-                IsHandled := true;
-                ReturnValue := false;
-                exit;
-            end;
-        end;
+        // if MemberCardNo <> '' then begin
+        //     if not VoucherBelongsToMember(DataEntry."Entry Code", MemberCardNo) then begin
+        //         ErrorTxt := StrSubstNo('Voucher %1 does not belong to this member.', DataEntry."Entry Code");
+        //         IsHandled := true;
+        //         ReturnValue := false;
+        //         exit;
+        //     end;
+        // end;
 
         //Lấy tổng giá trị item hiện có
         totalAmountItemValid := 0;
