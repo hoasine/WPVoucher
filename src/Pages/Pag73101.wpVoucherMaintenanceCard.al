@@ -92,12 +92,6 @@ page 73101 wpVoucherMaintenanceCard
                     ApplicationArea = Basic, Suite;
                     Editable = IsPageEditable;
                 }
-
-                field(Enabled; Rec.Enabled)
-                {
-                    ApplicationArea = Basic, Suite;
-                    Editable = false;
-                }
             }
 
             part(wpVoucherMember; wpVoucherMember)
@@ -135,6 +129,10 @@ page 73101 wpVoucherMaintenanceCard
 
                 trigger OnAction()
                 begin
+                    if Rec.ID = '' then begin
+                        Error('Invalid data. Please check again!');
+                    end;
+
                     Rec.Enabled := true;
                     Rec.Modify(true);
                     CurrPage.Update(true);
@@ -194,5 +192,14 @@ page 73101 wpVoucherMaintenanceCard
     trigger OnOpenPage()
     begin
         CurrPage.Update();
+
+        //Tạo mới
+        if Rec.ID = '' then begin
+            CurrPage.Editable := true;
+            IsPageEditable := true;
+
+            EnableButtonVisible := true;
+            DisableButtonVisible := false;
+        end;
     end;
 }

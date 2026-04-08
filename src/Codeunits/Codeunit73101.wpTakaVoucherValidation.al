@@ -35,7 +35,7 @@ codeunit 73101 "wpTakaVoucherValidation"
         if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
             case PosDataEntry.Status of
                 PosDataEntry.Status::Active:
-                    ErrorTxt := StrSubstNo('Voucher %1 has not been issued yet ', DataEntry."Entry Code");
+                    ErrorTxt := StrSubstNo('Voucher %1 has not been redeemed yet ', DataEntry."Entry Code");
                 PosDataEntry.Status::" ":
                     ErrorTxt := StrSubstNo('Voucher %1 is not activated.', DataEntry."Entry Code");
                 else
@@ -92,6 +92,10 @@ codeunit 73101 "wpTakaVoucherValidation"
                 if ValidateTrans(TransLine.Number, VoucherID) then begin
                     itemValidList := itemValidList + TransLine.Number + ';';
                     totalAmountItemValid := totalAmountItemValid + TransLine.Amount;
+
+                    TransLine."Is Used VC" := true;
+                    TransLine."Voucher ID of Used" := VoucherID;
+                    TransLine.Modify();
                 end;
             until TransLine.Next() = 0;
 
@@ -126,27 +130,32 @@ codeunit 73101 "wpTakaVoucherValidation"
         end else if calAmountCurrent > 0 then begin //Chỉ lấy amount đủ cho item đủ điều kiện
             RLineAmount := VoucherEntry."Remaining Amount Now" - calAmountCurrent;
         end;
-
-        TransLine."Is Used VC" := true;
-        TransLine."Voucher ID of Used" := VoucherID;
-        TransLine.Modify();
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnAfterVoidLine', '', false, false)]
     local procedure wp_OnVoidLine(var POSTransaction: Record "LSC POS Transaction"; var POSTransLine: Record "LSC POS Trans. Line")
     var
         lposTranLine: Record "LSC POS Trans. Line";
+        lposTranLineUpdate: Record "LSC POS Trans. Line";
     begin
+        //kiêm tra nếu còn 1 voucher nào apply thì vẫn giữ nguyên
         lposTranLine.Reset();
         lposTranLine.SetRange("Receipt No.", POSTransaction."Receipt No.");
+        lposTranLine.SetRange("Entry Type", POSTransLine."Entry Type"::Payment);
+        lposTranLine.SetRange("Entry Status", POSTransLine."Entry Status"::" ");
         lposTranLine.SetRange("Number", POSTransLine."Number");
-        lposTranLine.SetRange("Entry Type", POSTransLine."Entry Type"::Item);
-        lposTranLine.SetRange("Entry Status", POSTransLine."Entry Status");
-        lposTranLine.SetRange("Line No.", POSTransLine."Line No.");
-        if lposTranLine.FindFirst() then begin
-            lposTranLine."Is Used VC" := false;
-            lposTranLine."Voucher ID of Used" := '';
-            lposTranLine.Modify();
+        if not lposTranLine.FindSet() then begin
+            lposTranLineUpdate.Reset();
+            lposTranLineUpdate.SetRange("Receipt No.", POSTransaction."Receipt No.");
+            lposTranLineUpdate.SetRange("Entry Type", POSTransLine."Entry Type"::Item);
+            lposTranLineUpdate.SetRange("Entry Status", POSTransLine."Entry Status"::" ");
+            if lposTranLineUpdate.FindSet() then begin
+                repeat
+                    lposTranLineUpdate."Is Used VC" := false;
+                    lposTranLineUpdate."Voucher ID of Used" := '';
+                    lposTranLineUpdate.Modify();
+                until lposTranLineUpdate.Next() = 0;
+            end;
         end;
     end;
 
