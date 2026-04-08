@@ -1,16 +1,17 @@
 codeunit 73101 "wpTakaVoucherValidation"
 {
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeDataEntryCheckAmount', '', false, false)]
-    local procedure OnBeforeDataEntryCheckAmount(
-    MgrKeyActive: Boolean;
-    RLineAmount: Decimal;
-    var Line: Record "LSC Pos Trans. Line";
-    var Trans: Record "LSC POS Transaction";
-    var DataEntry: Record "LSC POS Data Entry";
-    var DataEntryType: Record "LSC POS Data Entry Type";
-    var ErrorTxt: Text;
-    var IsHandled: Boolean;
-    var ReturnValue: Boolean)
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeTypeApplyToEntry', '', false, false)]
+    local procedure OnBeforeTypeApplyToEntry(Input: Text; MgrKeyActive: Boolean; Training: Boolean; var TSError: Boolean; var Line: Record "LSC Pos Trans. Line"; var Trans: Record "LSC POS Transaction"; var InfoCodeRec: Record "LSC Infocode"; var ErrorTxt: Text; var IsHandled: Boolean; var ReturnValue: Boolean)
+    // local procedure OnBeforeDataEntryCheckAmount(
+    // MgrKeyActive: Boolean;
+    // RLineAmount: Decimal;
+    // var Line: Record "LSC Pos Trans. Line";
+    // var Trans: Record "LSC POS Transaction";
+    // var DataEntry: Record "LSC POS Data Entry";
+    // var DataEntryType: Record "LSC POS Data Entry Type";
+    // var ErrorTxt: Text;
+    // var IsHandled: Boolean;
+    // var ReturnValue: Boolean)
     var
         VoucherEntry: Record "LSC Voucher Entries";
         PosDataEntry: Record "LSC POS Data Entry";
@@ -22,34 +23,22 @@ codeunit 73101 "wpTakaVoucherValidation"
         totalAmountItemValid: Decimal;
         totalAmountTender: Decimal;
         calAmountCurrent: Decimal;
+        voucherNo: text[50];
     begin
+        voucherNo := Input;
+
         // Lấy Pos data entry
         PosDataEntry.Reset();
-        PosDataEntry.SetRange("Entry Code", DataEntry."Entry Code");
+        PosDataEntry.SetRange("Entry Code", voucherNo);
         if not PosDataEntry.FindFirst() then begin
             ErrorTxt := 'Not found POS Data Entry Table.';
-            exit;
-        end;
-
-        // check voucher phải ở status redeemp
-        if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
-            case PosDataEntry.Status of
-                PosDataEntry.Status::Active:
-                    ErrorTxt := StrSubstNo('Voucher %1 has not been redeemed yet ', DataEntry."Entry Code");
-                PosDataEntry.Status::" ":
-                    ErrorTxt := StrSubstNo('Voucher %1 is not activated.', DataEntry."Entry Code");
-                else
-                    ErrorTxt := StrSubstNo('Voucher %1 cannot be used (Status: %2).', DataEntry."Entry Code", PosDataEntry.Status);
-            end;
-            IsHandled := true;
-            ReturnValue := false;
             exit;
         end;
 
         Clear(VoucherEntry);
         VoucherEntry.Reset();
         VoucherEntry.SetRange("Entry Type", VoucherEntry."Entry Type"::Issued);
-        VoucherEntry.SetRange("Voucher No.", DataEntry."Entry Code");
+        VoucherEntry.SetRange("Voucher No.", voucherNo);
         if not VoucherEntry.FindFirst() then begin
             ErrorTxt := 'Not found Voucher Entry Table.';
             exit;
@@ -58,7 +47,22 @@ codeunit 73101 "wpTakaVoucherValidation"
         // Kiểm tra voucher có thuộc chương trình VoucherID setup không
         VoucherID := VoucherEntry."Voucher Id";
         if VoucherID = '' then begin
-            ErrorTxt := 'Not found Voucher Id.';
+            ErrorTxt := 'Not found Voucher ID.';
+            exit;
+        end;
+
+        // check voucher phải ở status redeemp
+        if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
+            case PosDataEntry.Status of
+                PosDataEntry.Status::Active:
+                    ErrorTxt := StrSubstNo('Voucher %1 has not been redeemed yet ', voucherNo);
+                PosDataEntry.Status::" ":
+                    ErrorTxt := StrSubstNo('Voucher %1 is not activated.', voucherNo);
+                else
+                    ErrorTxt := StrSubstNo('Voucher %1 cannot be used (Status: %2).', voucherNo, PosDataEntry.Status);
+            end;
+            IsHandled := true;
+            ReturnValue := false;
             exit;
         end;
 
@@ -126,9 +130,9 @@ codeunit 73101 "wpTakaVoucherValidation"
 
         calAmountCurrent := totalAmountTender - totalAmountItemValid;
         if calAmountCurrent <= 0 then begin
-            RLineAmount := VoucherEntry."Remaining Amount Now";
+            Line.Amount := VoucherEntry."Remaining Amount Now";
         end else if calAmountCurrent > 0 then begin //Chỉ lấy amount đủ cho item đủ điều kiện
-            RLineAmount := VoucherEntry."Remaining Amount Now" - calAmountCurrent;
+            Line.Amount := VoucherEntry."Remaining Amount Now" - calAmountCurrent;
         end;
     end;
 
@@ -259,12 +263,6 @@ codeunit 73101 "wpTakaVoucherValidation"
         exit(true);
     end;
 
-    // [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnBeforevoidLinePressed', '', false, false)]
-    // internal procedure OnBeforevoidLinePressed(var POSTransaction: Record "LSC POS Transaction"; var IsHandled: Boolean)
-    // begin
-    //     IsHandled := false;
-    // end;
-
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
     local procedure OnBeforeInsertPaymentEntryV2(var POSTransaction: Record "LSC POS Transaction"; var POSTransLineTemp: Record "LSC POS Trans. Line" temporary; var TransPaymentEntry: Record "LSC Trans. Payment Entry")
     var
@@ -284,8 +282,6 @@ codeunit 73101 "wpTakaVoucherValidation"
                 if PosDataEntry.FindFirst() then begin
                     PosDataEntry.LockTable();
                     PosDataEntry.Status := PosDataEntry.Status::Used;
-                    // PosDataEntry."Date Applied" := Today;
-                    // PosDataEntry."Applied by Receipt No." := TransactionHeader_p."Receipt No.";
                     PosDataEntry.Modify(true);
                 end;
             until TransInfoCodeEntry.Next() = 0;
