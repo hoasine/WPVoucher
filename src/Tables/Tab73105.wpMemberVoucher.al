@@ -51,11 +51,9 @@ table 73105 wpMemberVoucher
         {
             Caption = 'Type';
         }
-        field(9; Exclude; Option)
+        field(9; Exclude; Boolean)
         {
             Caption = 'Exclude';
-            OptionMembers = "True","False";
-            OptionCaption = 'True,False';
         }
     }
     keys
@@ -69,6 +67,6 @@ table 73105 wpMemberVoucher
     trigger OnInsert()
     begin
         if Type = Type::"Non Member" then
-            Exclude := Rec.Exclude::"False";
+            Exclude := false;
     end;
 }

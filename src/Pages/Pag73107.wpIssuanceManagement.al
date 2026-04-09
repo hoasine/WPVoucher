@@ -14,42 +14,94 @@ page 73107 "Issuance Management"
     {
         area(content)
         {
-            field(SelectedVoucher; SelectedVoucherID)
+            group("Voucher Campaign")
             {
-                Caption = 'Voucher Campaign';
-                ApplicationArea = All;
-                ShowMandatory = true;
-                TableRelation = wpVoucherMaintenance.ID WHERE(Enabled = CONST(true));
+                field(SelectedVoucher; SelectedVoucherID)
+                {
+                    Caption = 'Voucher Campaign';
+                    ApplicationArea = All;
+                    ShowMandatory = true;
+                    TableRelation = wpVoucherMaintenance.ID WHERE(Enabled = CONST(true));
 
-                trigger OnValidate()
-                var
-                    SavedID: Code[20];
-                    voucherId: Record wpVoucherMaintenance;
-                begin
-                    SavedID := SelectedVoucherID;
-                    if SavedID = '' then
-                        exit;
+                    trigger OnValidate()
+                    var
+                        SavedID: Code[20];
+                        voucherId: Record wpVoucherMaintenance;
+                    begin
 
-                    if not voucherId.Get(SavedID) then begin
-                        SelectedVoucherID := '';
-                        Error('Voucher Campaign %1 not found.', SavedID);
-                    end;
+                        allowScanReceipt := SelectedVoucherID <> '';
 
-                    if not voucherId.Enabled then begin
-                        SelectedVoucherID := '';
-                        Error('Voucher Campaign %1 is not enabled.', SavedID);
-                    end;
-
-                    if (IsMemberType = true) or (ReceiptCountedFilter > 0) then
-                        if not Confirm('Changing voucher campaign will clear all scanned data. Continue?', false) then begin
-                            SelectedVoucherID := SavedID;
+                        SavedID := SelectedVoucherID;
+                        if SavedID = '' then
                             exit;
+
+                        if not voucherId.Get(SavedID) then begin
+                            SelectedVoucherID := '';
+                            Error('Voucher Campaign %1 not found.', SavedID);
                         end;
 
-                    ClearAllData(false);
-                    SelectedVoucherID := SavedID;
-                end;
+                        if not voucherId.Enabled then begin
+                            SelectedVoucherID := '';
+                            Error('Voucher Campaign %1 is not enabled.', SavedID);
+                        end;
+
+                        if (ScanMemberFilter <> '') or (ReceiptCountedFilter > 0) then
+                            if not Confirm('Changing voucher campaign will clear all scanned data. Continue?', false) then begin
+                                SelectedVoucherID := SavedID;
+                                exit;
+                            end;
+
+                        voucherId.CalcFields("Starting Date", "Ending Date");
+                        if voucherId."Starting Date" > Today() then begin
+                            SelectedVoucherID := '';
+                            Error('Voucher Campaign %1 has not started yet.', SavedID);
+                        end;
+                        if (voucherId."Ending Date" <> 0D) and (voucherId."Ending Date" < Today()) then begin
+                            SelectedVoucherID := '';
+                            Error('Voucher Campaign %1 has already expired.', SavedID);
+                        end;
+
+                        VoucherDescription := voucherId.Description;
+                        ValidationDescription := voucherId."Validation Description";
+                        StartingDate := voucherId."Starting Date";
+                        EndingDate := voucherId."Ending Date";
+
+                        ClearAllData(false);
+                        SelectedVoucherID := SavedID;
+
+                        CurrPage.Update(false);
+                    end;
+                }
+                field(VoucherDescription; VoucherDescription)
+                {
+                    Caption = 'Description';
+                    ApplicationArea = All;
+                    Editable = false;
+                }
+
+                field(ValidationDescription; ValidationDescription)
+                {
+                    Caption = 'Validation Description';
+                    ApplicationArea = All;
+                    Editable = false;
+                }
+
+                field(StartingDate; StartingDate)
+                {
+                    Caption = 'Starting Date';
+                    ApplicationArea = All;
+                    Editable = false;
+                }
+
+                field(EndingDate; EndingDate)
+                {
+                    Caption = 'Ending Date';
+                    ApplicationArea = All;
+                    Editable = false;
+                }
+
             }
+
 
             group(Options)
             {
@@ -74,6 +126,7 @@ page 73107 "Issuance Management"
                     Caption = 'Scan Receipt';
                     ApplicationArea = All;
                     ShowMandatory = true;
+                    Editable = allowScanReceipt;
 
                     trigger OnValidate()
                     begin
@@ -836,12 +889,12 @@ page 73107 "Issuance Management"
             wpMemberVoucher.SetRange("Member Club", MemberClub);
             wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
             if wpMemberVoucher.FindFirst() then begin
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                if wpMemberVoucher.Exclude = true then begin
                     Message('Scheme Code:=%1 are not eligible to apply for Taka Voucher.', MemberScheme);
                     exit(false);
                 end;
 
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                if wpMemberVoucher.Exclude = false then
                     exit(true);
             end;
 
@@ -852,12 +905,12 @@ page 73107 "Issuance Management"
             wpMemberVoucher.SetRange("Member Club", MemberClub);
             wpMemberVoucher.SetRange("Member Scheme", '');
             if wpMemberVoucher.FindFirst() then begin
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                if wpMemberVoucher.Exclude = true then begin
                     Message('Club Code:=%1 are not eligible to apply for Taka Voucher.', MemberClub);
                     exit(false);
                 end;
 
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                if wpMemberVoucher.Exclude = false then
                     exit(true);
             end;
 
@@ -869,12 +922,12 @@ page 73107 "Issuance Management"
             wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
             wpMemberVoucher.SetRange(Type, wpMemberVoucher.Type::"Non Member");
             if wpMemberVoucher.FindFirst() then begin
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                if wpMemberVoucher.Exclude = true then begin
                     Message('Non-Members are not eligible to apply for Taka Voucher.', MemberClub);
                     exit(false);
                 end;
 
-                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                if wpMemberVoucher.Exclude = false then
                     exit(true);
             end;
 
@@ -1020,10 +1073,10 @@ page 73107 "Issuance Management"
                 then begin
 
                     //  Ưu tiên check bị loại trước
-                    if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then
+                    if wpMemberVoucher.Exclude then
                         exit(false);
 
-                    if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                    if not wpMemberVoucher.Exclude then
                         IsAllowed := true;
                 end;
 
@@ -1060,6 +1113,15 @@ page 73107 "Issuance Management"
         SelectedVoucherID: Code[20];
         isValidated: Boolean;
         ShowVoucherBudgetPart: Boolean;
+
+        VoucherDescription: Text[100];
+        ValidationDescription: Text[100];
+        StartingDate: Date;
+        EndingDate: Date;
+
+        allowScanMember: Boolean;
+        allowScanReceipt: Boolean;
+
 
     trigger OnAfterGetRecord()
     begin

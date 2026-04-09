@@ -51,6 +51,7 @@ page 73101 wpVoucherMaintenanceCard
                         trigger OnValidate()
                         begin
                             Rec.CalcFields("Starting Date", "Ending Date");
+                            CurrPage.Update();
                         end;
                     }
 
@@ -129,9 +130,15 @@ page 73101 wpVoucherMaintenanceCard
 
                 trigger OnAction()
                 begin
-                    if Rec.ID = '' then begin
-                        Error('Invalid data. Please check again!');
+                    Rec.CalcFields("Starting Date", "Ending Date");
+
+                    if (Rec."Ending Date" <> 0D) and (Rec."Ending Date" < Today) then begin
+                        Message('This voucher has already expired and cannot be enabled.');
+                        exit;
                     end;
+
+                    if Rec.ID = '' then
+                        Error('Invalid data. Please check again!');
 
                     Rec.Enabled := true;
                     Rec.Modify(true);
@@ -177,6 +184,13 @@ page 73101 wpVoucherMaintenanceCard
 
     trigger OnAfterGetRecord()
     begin
+        Rec.CalcFields("Starting Date", "Ending Date");
+
+        if Rec.Enabled and (Rec."Ending Date" <> 0D) and (Rec."Ending Date" < Today) then begin
+            Rec.Enabled := false;
+            Rec.Modify(false);
+        end;
+
         if Rec.Enabled then begin
             CurrPage.Editable := false;
             IsPageEditable := false;
@@ -202,4 +216,6 @@ page 73101 wpVoucherMaintenanceCard
             DisableButtonVisible := false;
         end;
     end;
+
+
 }

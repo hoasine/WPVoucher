@@ -372,6 +372,7 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
     begin
 
         POSDataEntry.Reset();
+        POSDataEntry.SetRange(Status, POSDataEntry.Status::" ");
         if POSDataEntry.FindSet() then
             repeat
                 if POSDataEntry."Document No." <> '' then begin
