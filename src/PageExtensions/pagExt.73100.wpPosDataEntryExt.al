@@ -64,6 +64,21 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
                     ActivateVoucherByDocument();
                 end;
             }
+            action("DeActivate Voucher")
+            {
+                Visible = ActiveVoucherVisible;
+                ApplicationArea = All;
+                Caption = 'DeActivate Voucher';
+                Image = Undo;
+                Promoted = true;
+                PromotedCategory = Process;
+                PromotedIsBig = true;
+
+                trigger OnAction()
+                begin
+                    DeActiveVoucher(Rec."Document No.");
+                end;
+            }
             // action("Activate Voucher")
             // {
             //     Enabled = ActiveVoucherVisible;
@@ -418,6 +433,25 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
             DocumentNo,
             CreatedCnt,
             SkippedCnt);
+    end;
+
+    local procedure DeActiveVoucher(DocumentNo: Code[20])
+    var
+        PosEntry: Record "LSC POS Data Entry";
+    begin
+        Clear(PosEntry);
+        PosEntry.SetRange(Status, PosEntry.Status::"Redeemed");
+        PosEntry.SetRange("Document No.", DocumentNo);
+        if PosEntry.Status <> PosEntry.Status::"Redeemed" then begin
+            Message('This voucher is not redeemed yet, cannot deactivate.');
+            exit;
+        end;
+        If PosEntry.FindFirst() then begin
+            PosEntry.Status := PosEntry.Status::DeActivated;
+            PosEntry.Modify();
+            Message('Deactivated voucher %1 successfully.', PosEntry."Entry Code");
+        end;
+
     end;
 
     trigger OnOpenPage()

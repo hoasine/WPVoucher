@@ -8,7 +8,7 @@ table 73101 wpVoucherMaintenance
 {
     Caption = 'Voucher Maintenance Setup';
     DrillDownPageId = wpVoucherMaintenanceCard;
-    LookupPageId = wpVoucherMaintenanceCard;
+    LookupPageId = wpVoucherMaintenanceLists;
     DataClassification = ToBeClassified;
     DataCaptionFields = ID, Description;
 

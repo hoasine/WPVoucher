@@ -11,6 +11,19 @@ page 73105 wpVoucherMember
             repeater(MemberVoucherSetup)
             {
                 ShowCaption = false;
+
+                field(Type; Rec.Type)
+                {
+                    ApplicationArea = Basic, Suite;
+                    trigger OnValidate()
+                    begin
+                        if Rec.Type = Rec.Type::All then begin
+                            Rec."Member Club" := '';
+                            Rec."Member Scheme" := '';
+                        end;
+                    end;
+                }
+
                 field("Voucher ID"; Rec."Voucher ID")
                 {
                     ApplicationArea = Basic, Suite;
@@ -20,6 +33,7 @@ page 73105 wpVoucherMember
                 {
                     ApplicationArea = Basic, Suite;
                     ShowMandatory = true;
+                    Editable = Rec.Type = Rec.Type::Member;
                     ToolTip = 'Specifies the voucher Member Club.';
                 }
                 field("Member Scheme"; Rec."Member Scheme")
@@ -46,6 +60,11 @@ page 73105 wpVoucherMember
                 {
                     ApplicationArea = Basic, Suite;
                     ToolTip = 'Specifies whether the discount is excluded from the Max Voucher Qty.';
+                }
+                field(Exclude; Rec.Exclude)
+                {
+                    ApplicationArea = Basic, Suite;
+                    ToolTip = 'Specifies whether the member exclude.';
                 }
             }
         }

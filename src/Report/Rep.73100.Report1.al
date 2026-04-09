@@ -23,16 +23,13 @@ report 73100 "Taka Voucher Report"
 
                 column(USERID; UserId) { }
                 column(COMPANYNAME; CompanyName) { }
-                //column(brdnm; itemSpecialGrpDesc) { }
                 column(DatePrint; DatePrint) { }
-
                 column("DateCreated"; "Date Created") { }
                 column("DateActived"; "Date Actived") { }
                 column("VoucherAmount"; "Amount") { }
                 column("ExpiringDate"; "Expiring Date") { }
-                column("DateRedeemed"; "Date Redeemed") { }
-                //column("Brand"; "Brand") { }
-                column("DateApplied"; "Date Applied") { }
+                column("DateRedeemed"; DateRedeemedExt) { }   // from ext
+                column("DateApplied"; "Date Applied") { }     // from base
                 column("TransactionNo"; TransactionNo) { }
                 column("PosTerminal"; PosTerminal) { }
                 column("Qty"; Qty) { }
@@ -43,19 +40,20 @@ report 73100 "Taka Voucher Report"
 
                 trigger OnPreDataItem()
                 begin
-                    if VoucherTypeFilter <> '' then
-                        Data.SetFilter("Code", VoucherTypeFilter);
-
+                    // Apply filters that belong to itemDataEntry here
                     if VoucherNoFilter <> '' then
                         itemDataEntry.SetFilter("Entry Code", VoucherNoFilter);
 
                     if DocumentNoFilter <> '' then
                         itemDataEntry.SetFilter("Document No.", DocumentNoFilter);
 
-                    itemDataEntry.SetFilter("Status", '%1|%2',
-                        "Status"::Redeemed,
-                        "Status"::Used);
+                    // Status filter: only Redeemed(2) and Used(3)
+                    // Use integer values directly to avoid enum reference issues
+                    itemDataEntry.SetFilter("Status", '2|3');
 
+                    // Parse date range upfront
+                    FilterDateStart := 0D;
+                    FilterDateEnd := 0D;
                     if DateFilterInput <> '' then begin
                         if StrPos(DateFilterInput, '..') > 0 then begin
                             Evaluate(FilterDateStart, CopyStr(DateFilterInput, 1, StrPos(DateFilterInput, '..') - 1));
@@ -77,18 +75,26 @@ report 73100 "Taka Voucher Report"
                     Clear(TransactionNo);
                     Clear(PosTerminal);
                     Qty := 0;
+                    DateRedeemedExt := "Date Redeemed";  // ext field (field 73104)
                     StatusValue := "Status".AsInteger();
 
-                    if "Status" = "Status"::Used then
-                        DateToCheck := "Date Applied"        // Status 3: Dùng rồi thì lấy Applied
+                    // Status 3 Used -> check Date Applied (base table)
+                    // Status 2 Redeemed -> check Date Redeemed (ext table field 73104)
+                    if StatusValue = 3 then
+                        DateToCheck := "Date Applied"
                     else
-                        DateToCheck := "Date Redeemed";      // Status 2: chưa dùng thì lấy date redeem
+                        DateToCheck := "Date Redeemed";  // ext field
 
                     DateFilterUsed := DateToCheck;
 
-                    if DateFilterInput <> '' then
+                    // Skip if date not in range
+                    if (FilterDateStart <> 0D) and (FilterDateEnd <> 0D) then
                         if (DateToCheck < FilterDateStart) or (DateToCheck > FilterDateEnd) then
                             CurrReport.Skip();
+
+                    // Skip if date is empty (1753 = BC empty date)
+                    if DateToCheck = 0D then
+                        CurrReport.Skip();
 
                     voucherEntries.SetRange("Voucher No.", "Entry Code");
                     voucherEntries.SetRange("Entry Type", 1);
@@ -103,6 +109,10 @@ report 73100 "Taka Voucher Report"
             trigger OnPreDataItem()
             begin
                 Data.SetRange("Enable/ Activate Taka Voucher", true);
+
+                // VoucherTypeFilter applied here on the OUTER dataitem where it belongs
+                if VoucherTypeFilter <> '' then
+                    Data.SetFilter("Code", VoucherTypeFilter);
             end;
         }
     }
@@ -166,5 +176,6 @@ report 73100 "Taka Voucher Report"
         Qty: Integer;
         StatusValue: Integer;
         DateFilterUsed: Date;
+        DateRedeemedExt: Date;
         ApplicationManagement: Codeunit "Filter Tokens";
 }

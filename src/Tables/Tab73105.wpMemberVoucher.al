@@ -19,6 +19,11 @@ table 73105 wpMemberVoucher
         {
             Caption = 'Member Club';
             TableRelation = "LSC Member Club".Code;
+            trigger OnValidate()
+            begin
+                if Rec.Type = Rec.Type::All then
+                    Error('You cannot select Member Club when Type = All.');
+            end;
         }
         field(3; "Member Scheme"; Code[20])
         {
@@ -42,6 +47,16 @@ table 73105 wpMemberVoucher
         {
             Caption = 'Max Voucher Qty';
         }
+        field(8; Type; Enum Type)
+        {
+            Caption = 'Type';
+        }
+        field(9; Exclude; Option)
+        {
+            Caption = 'Exclude';
+            OptionMembers = "True","False";
+            OptionCaption = 'True,False';
+        }
     }
     keys
     {
@@ -50,4 +65,10 @@ table 73105 wpMemberVoucher
             Clustered = true;
         }
     }
+
+    trigger OnInsert()
+    begin
+        if Type = Type::All then
+            Exclude := Rec.Exclude::"False";
+    end;
 }
