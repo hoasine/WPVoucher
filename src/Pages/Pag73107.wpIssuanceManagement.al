@@ -721,20 +721,20 @@ page 73107 "Issuance Management"
         end;
 
         if wpVoucherMaintenance."Starting Date" > Today then begin
-            Message('Voucher ID:=%1 Start Date and End Date đã hết hạn', SelectedVoucherID);
+            Message('Voucher ID:=%1 Start Date and End Date have expired', SelectedVoucherID);
             exit;
         end;
 
         if (wpVoucherMaintenance."Ending Date" <> 0D) and
            (wpVoucherMaintenance."Ending Date" < Today) then begin
-            Message('Voucher ID:=%1 Start Date and End Date đã hết hạn', SelectedVoucherID);
+            Message('Voucher ID:=%1 Start Date and End Date have expired', SelectedVoucherID);
             exit;
         end;
 
         if not LoadVoucherLimits() then
             exit;
 
-        if (MaxReceiptAllowed > 0) and (ReceiptCountedFilter > MaxReceiptAllowed) then begin
+        if (MaxReceiptAllowed > 0) and (ReceiptCountedFilter >= MaxReceiptAllowed) then begin
             Message(
                 'This member is only allowed to scan %1 receipt(s). Already scanned: %2.',
                 MaxReceiptAllowed, ReceiptCountedFilter);
@@ -745,6 +745,12 @@ page 73107 "Issuance Management"
         TransHeader.SetRange("Receipt No.", ReceiptNo);
         if not TransHeader.FindFirst() then begin
             Message(ReceiptNotFoundErr, ReceiptNo);
+            exit;
+        end;
+
+        //Loại trừ bill đã cancel
+        if (SourceSalesEntry."Refunded Store No." <> '') then begin
+            Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
             exit;
         end;
 
@@ -792,17 +798,19 @@ page 73107 "Issuance Management"
             end;
         end;
 
-        //Kiểm tra 1 khách hàng sử dụng voucher giới hạn trong ngày
-        logVoucherEntry.Reset();
-        logVoucherEntry.SetRange("Member Card", MembershipCard);
-        logVoucherEntry.SetRange("Applied Date", Today);
-        quantityOfDay := logVoucherEntry.Count();
-        wpVoucherStp.Get();
-        if wpVoucherStp."Quantity Exchange of Day" <> 0 then
-            if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
-                Message('Customer exceeded %1 exchange(s) allowed per day.', wpVoucherStp."Quantity Exchange of Day");
-                exit;
-            end;
+        if IsMemberType = true then begin
+            //Kiểm tra 1 khách hàng sử dụng voucher giới hạn trong ngày
+            logVoucherEntry.Reset();
+            logVoucherEntry.SetRange("Member Card", MembershipCard);
+            logVoucherEntry.SetRange("Applied Date", Today);
+            quantityOfDay := logVoucherEntry.Count();
+            wpVoucherStp.Get();
+            if wpVoucherStp."Quantity Exchange of Day" <> 0 then
+                if quantityOfDay > wpVoucherStp."Quantity Exchange of Day" then begin
+                    Message('Customer exceeded %1 exchange(s) allowed per day.', wpVoucherStp."Quantity Exchange of Day");
+                    exit;
+                end;
+        end;
 
         TempRec.Copy(Rec, true);
         TempRec.SetRange("Receipt No.", ReceiptNo);
@@ -858,8 +866,9 @@ page 73107 "Issuance Management"
             exit;
 
         ReceiptQtyLimit := wpMemberVoucher."Receipt Qty";
-        if (ReceiptQtyLimit > 0) and (ReceiptCountedFilter > ReceiptQtyLimit) then
+        if (ReceiptQtyLimit > 0) and (ReceiptCountedFilter > ReceiptQtyLimit) then begin
             exit;
+        end;
 
         if wpMemberVoucher."Total value" > 0 then
             if Abs(TotalSale) < wpMemberVoucher."Total value" then
