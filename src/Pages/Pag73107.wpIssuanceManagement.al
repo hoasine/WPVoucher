@@ -40,7 +40,7 @@ page 73107 "Issuance Management"
                         Error('Voucher Campaign %1 is not enabled.', SavedID);
                     end;
 
-                    if (ScanMemberFilter <> '') or (ReceiptCountedFilter > 0) then
+                    if (IsMemberType = true) or (ReceiptCountedFilter > 0) then
                         if not Confirm('Changing voucher campaign will clear all scanned data. Continue?', false) then begin
                             SelectedVoucherID := SavedID;
                             exit;
@@ -59,7 +59,7 @@ page 73107 "Issuance Management"
                 {
                     Caption = 'Scan Member';
                     ApplicationArea = All;
-                    ShowMandatory = true;
+                    // ShowMandatory = true;
 
                     trigger OnValidate()
                     begin
@@ -77,12 +77,9 @@ page 73107 "Issuance Management"
 
                     trigger OnValidate()
                     begin
-                        if ScanMemberFilter = '' then begin
-                            Message('Please scan the member card before scanning the receipt!');
-                            exit;
-                        end;
                         if ScanReceiptFilter = '' then
                             exit;
+
                         AddReceiptToTemp(ScanReceiptFilter);
                         Clear(ScanReceiptFilter);
                     end;
@@ -327,58 +324,36 @@ page 73107 "Issuance Management"
         MemberCard: Record "LSC Membership Card";
         TempScannedVouchers: Record "LSC POS Data Entry" temporary;
         memberVoucher: Record wpMemberVoucher;
-        MaxVoucherQty: Integer;
+        voucherMaxQty: Integer;
     begin
         VoucherID := SelectedVoucherID;
-
-
 
         if VoucherID = '' then begin
             Message('Please select a voucher campaign first.');
             exit;
         end;
 
-        if not MemberCard.Get(ScanMemberFilter) then begin
-            Message('Membership card not found.');
-            exit;
+        if IsMemberType = true then begin
+            if not MemberCard.Get(MembershipCard) then begin
+                Message('Membership card not found.');
+                exit;
+            end;
+
+            if not IsMemberAllowed(VoucherID, MemberCard."Club Code", MemberCard."Scheme Code") then begin
+                Message('This member is not eligible for this voucher.');
+                exit;
+            end;
         end;
 
-        if not IsMemberAllowed(VoucherID, MemberCard."Club Code", MemberCard."Scheme Code") then begin
-            Message('This member is not eligible for this voucher.');
-            exit;
-        end;
-
-        GetAllowedVoucherQty(VoucherID, MemberCard."Club Code", MemberCard."Scheme Code",
-            VoucherQty, VoucherAmount, TotalSale);
+        GetAllowedVoucherQty(VoucherID, voucherMaxQty, VoucherQty, VoucherAmount, TotalSale);
 
         if VoucherQty = 0 then begin
             Message('No voucher eligible for issuance.');
             exit;
         end;
 
-
-
-        //Lấy MaxVoucherQty dựa vào scheme
-        memberVoucher.Reset();
-        memberVoucher.SetRange("Voucher ID", VoucherID);
-        memberVoucher.SetRange("Member Club", MemberCard."Club Code");
-        memberVoucher.SetRange("Member Scheme", MemberCard."Scheme Code");
-        memberVoucher.SetRange(Exclude, memberVoucher.Exclude::"False");
-        if not memberVoucher.FindFirst() then begin
-            memberVoucher.Reset();
-            memberVoucher.SetRange("Voucher ID", VoucherID);
-            memberVoucher.SetRange("Member Club", MemberCard."Club Code");
-            memberVoucher.SetRange("Member Scheme", '');
-            memberVoucher.SetRange(Exclude, memberVoucher.Exclude::"False");
-            if not memberVoucher.FindFirst() then begin
-                Message('No member voucher setup found.');
-                exit;
-            end;
-        end;
-        MaxVoucherQty := memberVoucher."Max Voucher Qty";
-
         //Set số voucher được phép phát hành vào page scan voucher
-        VoucherPage.SetVoucherLimitAndAmount(VoucherQty, VoucherAmount, MaxVoucherQty);
+        VoucherPage.SetVoucherLimitAndAmount(VoucherQty, VoucherAmount, voucherMaxQty);
         VoucherPage.SetVoucherID(VoucherID);
         VoucherPage.RunModal();
 
@@ -487,31 +462,15 @@ page 73107 "Issuance Management"
         until TempRec.Next() = 0;
     end;
 
-    procedure GetAllowedVoucherQty(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20];
+    procedure GetAllowedVoucherQty(VoucherID: Code[20]; var voucherMaxQty: Integer;
         var VoucherQty: Integer; var VoucherAmount: Decimal; TotalSale: Decimal)
     var
         wpMemberVoucher: Record wpMemberVoucher;
     begin
-
-        //Tìm scheme 
-        wpMemberVoucher.Reset();
-        wpMemberVoucher.SetRange("Voucher ID", VoucherID);
-        wpMemberVoucher.SetRange("Member Club", MemberClub);
-        wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
-        wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-
-        //Nếu không có thì gán "" = tất cả scheme
-        if not wpMemberVoucher.FindFirst() then begin
-            wpMemberVoucher.Reset();
-            wpMemberVoucher.SetRange("Voucher ID", VoucherID);
-            wpMemberVoucher.SetRange("Member Club", MemberClub);
-            wpMemberVoucher.SetRange("Member Scheme", '');
-            wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-            if not wpMemberVoucher.FindFirst() then begin
-                VoucherQty := 0;
-                VoucherAmount := 0;
-                exit;
-            end;
+        if not GetVoucherMemberSetup(wpMemberVoucher) then begin
+            VoucherQty := 0;
+            VoucherAmount := 0;
+            exit;
         end;
 
         if wpMemberVoucher."Total value" = 0 then begin
@@ -526,6 +485,7 @@ page 73107 "Issuance Management"
             if VoucherQty > wpMemberVoucher."Max Voucher Qty" then
                 VoucherQty := wpMemberVoucher."Max Voucher Qty";
 
+        voucherMaxQty := wpMemberVoucher."Max Voucher Qty";
         VoucherQty := Round(VoucherQty, 1, '<');
         VoucherAmount := wpMemberVoucher."Voucher Amount";
     end;
@@ -550,6 +510,7 @@ page 73107 "Issuance Management"
         Clear(MemberClub);
         Clear(MemberScheme);
         Clear(ScanMemberFilter);
+        Clear(IsMemberType);
         Clear(MaxReceiptAllowed);
         Clear(isValidated);
         Clear(SelectedVoucherID);
@@ -559,40 +520,29 @@ page 73107 "Issuance Management"
             Message('All scanned receipt data has been cleared successfully.');
     end;
 
-    // local procedure CalcTotalSale()
-    // var
-    //     TempRec: Record "LSC Trans. Sales Entry" temporary;
-    // begin
-    //     TotalSale := 0;
-    //     TotalQuantity := 0;
-    //     TotalItemValid := 0;
-
-    //     TempRec.Copy(Rec, true);
-    //     if TempRec.FindSet() then
-    //         repeat
-    //             TotalQuantity += TempRec."Quantity";
-    //             if TempRec."Voucher Status Temp" = TempRec."Voucher Status Temp"::Valid then begin
-    //                 TotalSale += TempRec."Total Rounded Amt.";
-    //                 TotalItemValid += TempRec."Quantity";
-    //             end;
-    //         until TempRec.Next() = 0;
-    // end;
-
     local procedure CalcTotalSale()
     var
         TempRec: Record "LSC Trans. Sales Entry" temporary;
         PaymentEntry: Record "LSC Trans. Payment Entry";
         ReceiptBuffer: Record "Name/Value Buffer" temporary;
+        wpVoucherMaintenance: Record wpVoucherMaintenance;
         ReceiptNo: Code[20];
         ReceiptSales: Decimal;
         ExcludedAmount: Decimal;
         store: Code[10];
         posNumber: Code[10];
         transNo: Integer;
+        BufferID: Integer;
     begin
         TotalSale := 0;
         TotalQuantity := 0;
         TotalItemValid := 0;
+        BufferID := 1;
+
+        if not wpVoucherMaintenance.Get(SelectedVoucherID) then begin
+            Message('Not found Voucher ID:=%1.', SelectedVoucherID);
+            exit;
+        end;
 
         TempRec.Copy(Rec, true);
         TempRec.Reset();
@@ -603,8 +553,10 @@ page 73107 "Issuance Management"
                     ReceiptBuffer.SetRange(Name, TempRec."Receipt No.");
                     if not ReceiptBuffer.FindFirst() then begin
                         ReceiptBuffer.Init();
+                        ReceiptBuffer.ID := BufferID;
                         ReceiptBuffer.Name := TempRec."Receipt No.";
                         ReceiptBuffer.Insert();
+                        BufferID += 1;
                     end;
                 end;
             until TempRec.Next() = 0;
@@ -640,7 +592,7 @@ page 73107 "Issuance Management"
                     PaymentEntry.SetRange("Store No.", store);
                     PaymentEntry.SetRange("POS Terminal No.", posNumber);
                     PaymentEntry.SetRange("Transaction No.", transNo);
-                    PaymentEntry.SetRange("Tender Type", '88');
+                    PaymentEntry.SetRange("Tender Type", wpVoucherMaintenance."Tender Type Code");
                     if PaymentEntry.FindSet() then
                         repeat
                             ExcludedAmount += Abs(PaymentEntry."Amount Tendered");
@@ -677,20 +629,31 @@ page 73107 "Issuance Management"
         MemberContact := shipCard."Contact No.";
         MemberClub := shipCard."Club Code";
         MemberScheme := shipCard."Scheme Code";
+        IsMemberType := true;
 
-        LoadMemberVoucherLimits();
+        if not LoadVoucherLimits() then begin
+            MemberDescription := '';
+            MemberAccount := '';
+            MembershipCard := '';
+            MemberContact := '';
+            MemberClub := '';
+            MemberScheme := '';
+            IsMemberType := false;
+            exit;
+        end;
     end;
 
     local procedure AddReceiptToTemp(ReceiptNo: Code[20])
     var
         TempRec: Record "LSC Trans. Sales Entry" temporary;
         logVoucherEntry: Record wpIssueVoucherLog;
+        logVoucherEntryLine: Record wpIssueVoucherLogLine;
         VoucherLevel: Enum "Item Voucher Level";
         wpVoucherStp: Record wpVoucherSetup;
         VoucherBudgetID: Code[20];
         quantityOfDay: Integer;
         ReceiptLimit: Integer;
-        wpMemberVoucher: Record wpMemberVoucher;
+        wpVoucherMaintenance: Record wpVoucherMaintenance;
     begin
         if SelectedVoucherID = '' then begin
             Message('Please select a Voucher Campaign first.');
@@ -699,30 +662,34 @@ page 73107 "Issuance Management"
 
         ReceiptLimit := 0;
 
-        wpMemberVoucher.Reset();
-        wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
-        wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
+        if not wpVoucherMaintenance.Get(SelectedVoucherID) then begin
+            Message('Not found Voucher ID:=%1.', SelectedVoucherID);
+            exit;
+        end;
 
-        if wpMemberVoucher.FindSet() then
-            repeat
-                //Chỗ này lặp tất cả member setup line gồm club rỗng hoặc có club như TKV hay VIP
-                //để lấy receipt qty
-                if
-                   ((wpMemberVoucher."Member Club" = '') or
-                    (wpMemberVoucher."Member Club" = MemberClub))
-                and
-                   ((wpMemberVoucher."Member Scheme" = '') or
-                    (wpMemberVoucher."Member Scheme" = MemberScheme))
-                then begin
-                    if wpMemberVoucher."Receipt Qty" > ReceiptLimit then
-                        ReceiptLimit := wpMemberVoucher."Receipt Qty";
-                end;
-            until wpMemberVoucher.Next() = 0;
+        if not wpVoucherMaintenance.Enabled then begin
+            Message('Voucher %1 with status:= Disable. Please check again in Voucher Maintenance Page', SelectedVoucherID);
+            exit;
+        end;
 
-        if (ReceiptLimit > 0) and (ReceiptCountedFilter >= ReceiptLimit) then begin
+        if wpVoucherMaintenance."Starting Date" > Today then begin
+            Message('Voucher ID:=%1 Start Date and End Date đã hết hạn', SelectedVoucherID);
+            exit;
+        end;
+
+        if (wpVoucherMaintenance."Ending Date" <> 0D) and
+           (wpVoucherMaintenance."Ending Date" < Today) then begin
+            Message('Voucher ID:=%1 Start Date and End Date đã hết hạn', SelectedVoucherID);
+            exit;
+        end;
+
+        if not LoadVoucherLimits() then
+            exit;
+
+        if (MaxReceiptAllowed > 0) and (ReceiptCountedFilter > MaxReceiptAllowed) then begin
             Message(
                 'This member is only allowed to scan %1 receipt(s). Already scanned: %2.',
-                ReceiptLimit, ReceiptCountedFilter);
+                MaxReceiptAllowed, ReceiptCountedFilter);
             exit;
         end;
 
@@ -733,28 +700,51 @@ page 73107 "Issuance Management"
             exit;
         end;
 
-
-
-        // Kiểm tra member hợp lệ
-        if TransHeader."Member Card No." = '' then begin
-            Message('Receipt %1 has no Member Card.', ReceiptNo);
-            exit;
-        end;
-
-        if TransHeader."Member Card No." <> ScanMemberFilter then begin
-            Message('Receipt %1 belongs to Card No %2. Not valid.', ReceiptNo, TransHeader."Member Card No.");
-            exit;
-        end;
-
-        //Kiểm tra hóa đơn trong ngày
-
+        //Loại trừ bill trong ngày
         if TransHeader.Date <> Today then begin
             Message('Taka Voucher can only be redeemed on the same day. Receipt %1 is invalid.', ReceiptNo);
             exit;
         end;
 
+        //Loại trừ bill return
+        if TransHeader."Sale Is Return Sale" then begin
+            Message('The bill %1 already returned. Please use another bill.', ReceiptNo);
+            exit;
+        end;
 
-        //Kiểm tra 1 khách hàng chỉ sử dụng 3 lần
+        //Loại trừ bill cancel
+        if TransHeader."Sale Is Cancel Sale" then begin
+            Message('The bill %1 already canceled. Please use another bill.', ReceiptNo);
+            exit;
+        end;
+
+        //loại trừ bill đã redeemp
+        logVoucherEntryLine.Reset();
+        logVoucherEntryLine.SetRange("Document No.", ReceiptNo);
+        if logVoucherEntryLine.FindSet() then begin
+            Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
+            exit;
+        end;
+
+        // Kiểm tra member hợp lệ
+        if IsMemberType = true then begin
+            if TransHeader."Member Card No." = '' then begin
+                Message('Receipt %1 has no Member Card.', ReceiptNo);
+                exit;
+            end;
+
+            if TransHeader."Member Card No." <> MembershipCard then begin
+                Message('Receipt %1 belongs to Card No %2. Not valid.', ReceiptNo, TransHeader."Member Card No.");
+                exit;
+            end;
+        end else begin
+            if TransHeader."Member Card No." <> '' then begin
+                Message('Non-Member only applies to receipts without a member card.', ReceiptNo);
+                exit;
+            end;
+        end;
+
+        //Kiểm tra 1 khách hàng sử dụng voucher giới hạn trong ngày
         logVoucherEntry.Reset();
         logVoucherEntry.SetRange("Member Card", MembershipCard);
         logVoucherEntry.SetRange("Applied Date", Today);
@@ -780,26 +770,6 @@ page 73107 "Issuance Management"
             exit;
         end;
 
-        if SourceSalesEntry."Refunded Store No." <> '' then begin //Loại trừ bill đã cancel
-            Message('The bill %1 has been canceled. Please use another bill.', ReceiptNo);
-            exit;
-        end;
-
-        if SourceSalesEntry."Is Redeemption" then begin //Loại trừ bill đã sử dụng
-            Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
-            exit;
-        end;
-
-        if TransHeader."Sale Is Return Sale" then begin //Loại trừ bill return
-            Message('The bill %1 already returned. Please use another bill.', ReceiptNo);
-            exit;
-        end;
-
-        if TransHeader."Sale Is Cancel Sale" then begin //Loại trừ bill cancel
-            Message('The bill %1 already canceled. Please use another bill.', ReceiptNo);
-            exit;
-        end;
-
         repeat
             Rec.Init();
             Rec.TransferFields(SourceSalesEntry);
@@ -819,42 +789,25 @@ page 73107 "Issuance Management"
         CurrPage.Update(false);
     end;
 
+    //Kiểm tra lại đủ điều kiện redeemp
     local procedure CheckAndSetValidated()
     var
         wpMemberVoucher: Record wpMemberVoucher;
         VoucherQty: Integer;
         VoucherAmount: Decimal;
         ReceiptQtyLimit: Integer;
+        voucherMaxQty: Integer;
     begin
         isValidated := false;
 
         if SelectedVoucherID = '' then
             exit;
-        if ScanMemberFilter = '' then
-            exit;
         if ReceiptCountedFilter = 0 then
             exit;
 
-        // Gọi hàm này để check member có được phép không
-        if not IsMemberAllowed(SelectedVoucherID, MemberClub, MemberScheme) then
+        //Kiểm tra có setup Non-Member hay Member Club
+        if not GetVoucherMemberSetup(wpMemberVoucher) then
             exit;
-
-        // lấy membersetup
-        wpMemberVoucher.Reset();
-        wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
-        wpMemberVoucher.SetRange("Member Club", MemberClub);
-        wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
-        wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-
-        if not wpMemberVoucher.FindFirst() then begin
-            wpMemberVoucher.Reset();
-            wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
-            wpMemberVoucher.SetRange("Member Club", MemberClub);
-            wpMemberVoucher.SetRange("Member Scheme", '');
-            wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-            if not wpMemberVoucher.FindFirst() then
-                exit;
-        end;
 
         ReceiptQtyLimit := wpMemberVoucher."Receipt Qty";
         if (ReceiptQtyLimit > 0) and (ReceiptCountedFilter > ReceiptQtyLimit) then
@@ -864,13 +817,70 @@ page 73107 "Issuance Management"
             if Abs(TotalSale) < wpMemberVoucher."Total value" then
                 exit;
 
-        GetAllowedVoucherQty(SelectedVoucherID, MemberClub, MemberScheme,
-            VoucherQty, VoucherAmount, TotalSale);
+        GetAllowedVoucherQty(SelectedVoucherID, voucherMaxQty, VoucherQty, VoucherAmount, TotalSale);
 
         if VoucherQty = 0 then
             exit;
 
         isValidated := true;
+    end;
+
+    local procedure GetVoucherMemberSetup(var wpMemberVoucher: Record wpMemberVoucher): Boolean
+    begin
+        // Member
+        if IsMemberType = true then begin
+            // 1. Club + Scheme
+            wpMemberVoucher.Reset();
+            wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
+            wpMemberVoucher.SetRange(Type, wpMemberVoucher.Type::Member);
+            wpMemberVoucher.SetRange("Member Club", MemberClub);
+            wpMemberVoucher.SetRange("Member Scheme", MemberScheme);
+            if wpMemberVoucher.FindFirst() then begin
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                    Message('Scheme Code:=%1 are not eligible to apply for Taka Voucher.', MemberScheme);
+                    exit(false);
+                end;
+
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                    exit(true);
+            end;
+
+            // 2. Club + blank Scheme
+            wpMemberVoucher.Reset();
+            wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
+            wpMemberVoucher.SetRange(Type, wpMemberVoucher.Type::Member);
+            wpMemberVoucher.SetRange("Member Club", MemberClub);
+            wpMemberVoucher.SetRange("Member Scheme", '');
+            if wpMemberVoucher.FindFirst() then begin
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                    Message('Club Code:=%1 are not eligible to apply for Taka Voucher.', MemberClub);
+                    exit(false);
+                end;
+
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                    exit(true);
+            end;
+
+            Message('Taka Voucher has not been set up for Member type');
+            exit(false);
+        end else begin
+            // Non-member
+            wpMemberVoucher.Reset();
+            wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
+            wpMemberVoucher.SetRange(Type, wpMemberVoucher.Type::"Non Member");
+            if wpMemberVoucher.FindFirst() then begin
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"True" then begin
+                    Message('Non-Members are not eligible to apply for Taka Voucher.', MemberClub);
+                    exit(false);
+                end;
+
+                if wpMemberVoucher.Exclude = wpMemberVoucher.Exclude::"False" then
+                    exit(true);
+            end;
+
+            Message('Taka Voucher for Non-Member type has not been set up yet');
+            exit(false);
+        end;
     end;
 
     procedure CheckItemVoucher(
@@ -889,43 +899,6 @@ page 73107 "Issuance Management"
     begin
         if not Item.Get(pItemNo) then
             exit(false);
-
-        if not wpVoucherMaintenance.Get(SelectedVoucherID) then
-            exit(false);
-
-        if not wpVoucherMaintenance.Enabled then
-            exit(false);
-
-        if wpVoucherMaintenance."Starting Date" > pDate then
-            exit(false);
-
-        if (wpVoucherMaintenance."Ending Date" <> 0D) and
-           (wpVoucherMaintenance."Ending Date" < pDate) then
-            exit(false);
-
-        wpMemberVoucher.Reset();
-        wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
-        wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-
-        if wpMemberVoucher.FindSet() then begin
-            repeat
-                if
-                   ((wpMemberVoucher."Member Club" = '') or
-                    (wpMemberVoucher."Member Club" = MemberClub))
-                and
-                   ((wpMemberVoucher."Member Scheme" = '') or
-                    (wpMemberVoucher."Member Scheme" = MemberScheme))
-                then begin
-                    ReceiptQtyLimit := wpMemberVoucher."Receipt Qty";
-                    break;
-                end;
-            until wpMemberVoucher.Next() = 0;
-        end else
-            exit(false);
-
-        if (ReceiptQtyLimit > 0) and (ReceiptCountedFilter >= ReceiptQtyLimit) then
-            exit(false);
-
 
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", SelectedVoucherID);
@@ -996,7 +969,7 @@ page 73107 "Issuance Management"
         exit(false);
     end;
 
-    local procedure LoadMemberVoucherLimits()
+    local procedure LoadVoucherLimits(): Boolean
     var
         wpVoucherMaint: Record wpVoucherMaintenance;
         wpMemberVoucher: Record wpMemberVoucher;
@@ -1004,18 +977,26 @@ page 73107 "Issuance Management"
         MaxReceiptAllowed := 0;
 
         if SelectedVoucherID = '' then
-            exit;
+            exit(false);
 
-        wpMemberVoucher.Reset();
-        wpMemberVoucher.SetRange("Voucher ID", SelectedVoucherID);
-        wpMemberVoucher.SetRange("Member Club", MemberClub);
-        wpMemberVoucher.SetRange(Exclude, wpMemberVoucher.Exclude::"False");
-        if wpMemberVoucher.FindSet() then
-            repeat
-                if (wpMemberVoucher."Member Scheme" = '') or (wpMemberVoucher."Member Scheme" = MemberScheme) then
-                    if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then
-                        MaxReceiptAllowed := wpMemberVoucher."Receipt Qty";
-            until wpMemberVoucher.Next() = 0;
+        if not GetVoucherMemberSetup(wpMemberVoucher) then begin
+            exit(false);
+        end;
+
+        if wpMemberVoucher."Total value" = 0 then begin
+            Message('Check field:=Total Value in Voucher Setup !');
+            exit(false);
+        end;
+
+        if wpMemberVoucher."Voucher Amount" = 0 then begin
+            Message('Check field:=Voucher Amount in Voucher Setup !');
+            exit(false);
+        end;
+
+        if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then
+            MaxReceiptAllowed := wpMemberVoucher."Receipt Qty";
+
+        exit(true);
     end;
 
     local procedure IsMemberAllowed(VoucherID: Code[20]; MemberClub: Code[20]; MemberScheme: Code[20]): Boolean
@@ -1055,6 +1036,7 @@ page 73107 "Issuance Management"
     var
         ScanReceiptFilter: Text[100];
         ScanMemberFilter: Text[100];
+        IsMemberType: Boolean;
         SourceSalesEntry: Record "LSC Trans. Sales Entry";
         ReceiptExistsErr: Label 'Receipt already scanned.';
         ReceiptNotFoundErr: Label 'Receipt %1 not found.';

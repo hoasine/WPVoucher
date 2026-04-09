@@ -21,8 +21,8 @@ table 73105 wpMemberVoucher
             TableRelation = "LSC Member Club".Code;
             trigger OnValidate()
             begin
-                if Rec.Type = Rec.Type::All then
-                    Error('You cannot select Member Club when Type = All.');
+                if Rec.Type = Rec.Type::"Non Member" then
+                    Error('You cannot select Member Club when Type = Non Member.');
             end;
         }
         field(3; "Member Scheme"; Code[20])
@@ -68,7 +68,7 @@ table 73105 wpMemberVoucher
 
     trigger OnInsert()
     begin
-        if Type = Type::All then
+        if Type = Type::"Non Member" then
             Exclude := Rec.Exclude::"False";
     end;
 }

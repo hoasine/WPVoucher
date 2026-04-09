@@ -17,7 +17,7 @@ page 73105 wpVoucherMember
                     ApplicationArea = Basic, Suite;
                     trigger OnValidate()
                     begin
-                        if Rec.Type = Rec.Type::All then begin
+                        if Rec.Type = Rec.Type::"Non Member" then begin
                             Rec."Member Club" := '';
                             Rec."Member Scheme" := '';
                         end;

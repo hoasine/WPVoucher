@@ -32,10 +32,6 @@ table 73134 wpIssueVoucherLog
         {
             Caption = 'User ID';
         }
-        field(60; "Store No."; Code[20])
-        {
-            Caption = 'Store No.';
-        }
         field(70; "Receipt Count"; Integer)
         {
             Caption = 'Receipt Count';
