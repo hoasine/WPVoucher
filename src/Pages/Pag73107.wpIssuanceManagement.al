@@ -79,26 +79,20 @@ page 73107 "Issuance Management"
                     Editable = false;
                 }
 
-                field(ValidationDescription; ValidationDescription)
-                {
-                    Caption = 'Validation Description';
-                    ApplicationArea = All;
-                    Editable = false;
-                }
 
-                field(StartingDate; StartingDate)
-                {
-                    Caption = 'Starting Date';
-                    ApplicationArea = All;
-                    Editable = false;
-                }
+                // field(StartingDate; StartingDate)
+                // {
+                //     Caption = 'Starting Date';
+                //     ApplicationArea = All;
+                //     Editable = false;
+                // }
 
-                field(EndingDate; EndingDate)
-                {
-                    Caption = 'Ending Date';
-                    ApplicationArea = All;
-                    Editable = false;
-                }
+                // field(EndingDate; EndingDate)
+                // {
+                //     Caption = 'Ending Date';
+                //     ApplicationArea = All;
+                //     Editable = false;
+                // }
 
             }
 
@@ -111,6 +105,7 @@ page 73107 "Issuance Management"
                 {
                     Caption = 'Scan Member';
                     ApplicationArea = All;
+                    Editable = allowScanReceipt;
                     // ShowMandatory = true;
 
                     trigger OnValidate()
