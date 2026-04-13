@@ -64,21 +64,21 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
                     ActivateVoucherByDocument();
                 end;
             }
-            action("DeActivate Voucher")
-            {
-                Visible = ActiveVoucherVisible;
-                ApplicationArea = All;
-                Caption = 'DeActivate Voucher';
-                Image = Undo;
-                Promoted = true;
-                PromotedCategory = Process;
-                PromotedIsBig = true;
+            // action("DeActivate Voucher")
+            // {
+            //     Visible = ActiveVoucherVisible;
+            //     ApplicationArea = All;
+            //     Caption = 'DeActivate Voucher';
+            //     Image = Undo;
+            //     Promoted = true;
+            //     PromotedCategory = Process;
+            //     PromotedIsBig = true;
 
-                trigger OnAction()
-                begin
-                    DeActiveVoucher(Rec."Document No.");
-                end;
-            }
+            //     trigger OnAction()
+            //     begin
+            //         DeActiveVoucher(Rec."Document No.");
+            //     end;
+            // }
             // action("Activate Voucher")
             // {
             //     Enabled = ActiveVoucherVisible;

@@ -19,7 +19,7 @@ codeunit 73102 wpVoucherToGL
         TotalVoucherAmounr: Decimal;
         tbStore: Record "LSC Store";
         tbPosDataEntry: Record "LSC POS Data Entry Type";
-        tbVoucherEntry: Record "LSC POS Data Entry";
+        tbPOSDataEntryLine: Record "LSC POS Data Entry";
         dateFilter: Date;
     begin
         IF tbSalesReceivables.Get() then begin
@@ -29,6 +29,7 @@ codeunit 73102 wpVoucherToGL
                 dateFilter := Today;
         end;
 
+        // Sửa theo campaings | Update status
         clear(NoOfLines);
         Clear(TotalVoucherAmounr);
         TotalVoucherAmounr := 0;
@@ -37,11 +38,11 @@ codeunit 73102 wpVoucherToGL
         tbPosDataEntry.SetRange("Enable/ Activate Taka Voucher", true);
         if tbPosDataEntry.findset then BEGIN
             repeat
-                Clear(tbVoucherEntry);
-                tbVoucherEntry.SetRange("Entry Type", tbPosDataEntry.Code);
-                tbVoucherEntry.SetRange("Status", tbVoucherEntry.Status::Active);
-                tbVoucherEntry.CalcSums(Amount);
-                TotalVoucherAmounr += tbVoucherEntry.Amount;
+                Clear(tbPOSDataEntryLine);
+                tbPOSDataEntryLine.SetRange("Entry Type", tbPosDataEntry.Code);
+                tbPOSDataEntryLine.SetRange("Status", tbPOSDataEntryLine.Status::Active);
+                tbPOSDataEntryLine.CalcSums(Amount);
+                TotalVoucherAmounr += tbPOSDataEntryLine.Amount;
             until tbPosDataEntry.Next() = 0;
         END;
 

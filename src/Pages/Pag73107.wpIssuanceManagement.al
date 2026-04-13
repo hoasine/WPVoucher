@@ -307,7 +307,7 @@ page 73107 "Issuance Management"
                 end;
             }
 
-            action(MTDSales)
+            action(IssueVoucher)
             {
                 ApplicationArea = All;
                 Caption = 'Issue Taka Voucher';

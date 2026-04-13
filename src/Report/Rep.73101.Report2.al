@@ -155,6 +155,7 @@ report 73101 "Taka Voucher Campaign Summary"
                     PosEntry.SetRange("Date Actived", CurrentDate);
                     QtyCount := PosEntry.Count();
 
+                    //Querry: voucher ID, date => Amount con lai. => Total Amount - Write Off Amount = Actual Amount
                     RowNo += 1;
                     TempResult.RowNo := RowNo;
                     TempResult.ReportDate := CurrentDate;
