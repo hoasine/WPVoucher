@@ -9,7 +9,7 @@ codeunit 73102 wpVoucherToGL
 
     procedure UpdateVoucherToGLJournal()
     var
-        tbVoucherSetup: Record wpVoucherSetup;
+        tbSalesReceivables: Record "Sales & Receivables Setup";
         GenJournalLine: Record "Gen. Journal Line";
         GenJnlPostBatch: Codeunit "Gen. Jnl.-Post Batch";
         GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line";
@@ -22,9 +22,9 @@ codeunit 73102 wpVoucherToGL
         tbVoucherEntry: Record "LSC POS Data Entry";
         dateFilter: Date;
     begin
-        IF tbVoucherSetup.Get() then begin
-            if tbVoucherSetup."Voucher GL Date" <> 0D then begin
-                dateFilter := tbVoucherSetup."Voucher GL Date";
+        IF tbSalesReceivables.Get() then begin
+            if tbSalesReceivables."Voucher GL Date" <> 0D then begin
+                dateFilter := tbSalesReceivables."Voucher GL Date";
             end else
                 dateFilter := Today;
         end;

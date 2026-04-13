@@ -20,13 +20,13 @@ table 73138 wpIssueVoucherLog
         {
             Caption = 'Member Card';
         }
-        field(30; "Applied Date"; Date)
+        field(30; "Redeemp Date"; Date)
         {
-            Caption = 'Applied Date';
+            Caption = 'Redeemp Date';
         }
-        field(40; "Applied Time"; Time)
+        field(40; "Redeemp Time"; Time)
         {
-            Caption = 'Applied Time';
+            Caption = 'Redeemp Time';
         }
         field(50; "User ID"; Code[50])
         {
@@ -49,11 +49,11 @@ table 73138 wpIssueVoucherLog
             Clustered = true;
         }
 
-        key(Key2; "Member Card", "Applied Date")
+        key(Key2; "Member Card", "Redeemp Date")
         {
         }
 
-        key(Key3; "Voucher ID", "Applied Date")
+        key(Key3; "Voucher ID", "Redeemp Date")
         {
         }
     }

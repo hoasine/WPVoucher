@@ -2,6 +2,7 @@ namespace worldpos.Voucher.Configuration;
 
 using worldpos.Voucher.Document;
 using Microsoft.Foundation.NoSeries;
+using Microsoft.Sales.Setup;
 using Microsoft.Purchases.Document;
 
 table 73101 wpVoucherMaintenance
@@ -146,12 +147,12 @@ table 73101 wpVoucherMaintenance
 
     procedure AssistEdit(oldBudget: Record wpVoucherMaintenance): Boolean
     var
-        wpStaffAllowStp: Record wpVoucherSetup;
+        tbSalesReceivables: Record "Sales & Receivables Setup";
         noSeriesMgmt: Codeunit "No. Series";
     begin
-        wpStaffAllowStp.Get();
-        wpStaffAllowStp.TestField("Voucher ID Nos.");
-        if noSeriesMgmt.LookupRelatedNoSeries(wpStaffAllowStp."Voucher ID Nos.", oldBudget."No. Series", "No. Series") then begin
+        tbSalesReceivables.Get();
+        tbSalesReceivables.TestField("Voucher ID Nos.");
+        if noSeriesMgmt.LookupRelatedNoSeries(tbSalesReceivables."Voucher ID Nos.", oldBudget."No. Series", "No. Series") then begin
             Rec.ID := noSeriesMgmt.GetNextNo("No. Series");
             exit(true);
         end;
@@ -166,14 +167,14 @@ table 73101 wpVoucherMaintenance
 
     trigger OnInsert()
     var
-        wpVoucherStp: Record wpVoucherSetup;
+        tbSalesReceivables: Record "Sales & Receivables Setup";
         noSeriesMgmt: Codeunit "No. Series";
         ph: Record "Purchase Header";
     begin
         if Rec.ID = '' then begin
-            wpVoucherStp.Get();
-            wpVoucherStp.TestField("Voucher ID Nos.");
-            "No. Series" := wpVoucherStp."Voucher ID Nos.";
+            tbSalesReceivables.Get();
+            tbSalesReceivables.TestField("Voucher ID Nos.");
+            "No. Series" := tbSalesReceivables."Voucher ID Nos.";
             Rec.ID := noSeriesMgmt.GetNextNo("No. Series");
         end;
     end;

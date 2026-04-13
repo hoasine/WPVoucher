@@ -49,7 +49,7 @@ page 73111 "Scan Taka Voucher"
                 }
 
 
-                field(MaxVoucherQty; MaxVoucherQty)
+                field(MaxVoucherQty; MaxVoucherQty - MaxVoucherAllowed)
                 {
                     Caption = 'Max Voucher Qty';
                     ApplicationArea = All;
@@ -206,12 +206,14 @@ page 73111 "Scan Taka Voucher"
         IsIssued: Boolean;
         VoucherID: Code[20];
         MaxVoucherQty: Integer;
+        MaxVoucherAllowed: Integer;
 
-    procedure SetVoucherLimitAndAmount(pLimit: Integer; pAmount: Decimal; pMax: Integer)
+    procedure SetVoucherLimitAndAmount(pLimit: Integer; pAmount: Decimal; pMax: Integer; pMaxVoucherAllowed: Integer)
     begin
         VoucherLimit := pLimit;
         VoucherAmount := pAmount;
         MaxVoucherQty := pMax;
+        MaxVoucherAllowed := pMaxVoucherAllowed;
     end;
 
     procedure WasIssued(): Boolean
