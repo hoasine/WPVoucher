@@ -1,6 +1,6 @@
 namespace worldpos.Voucher.Configuration;
 
-table 73138 wpIssueVoucherLog
+table 73138 wpIssueLog
 {
     Caption = 'Issue Voucher Log';
     DataClassification = ToBeClassified;

@@ -1,4 +1,4 @@
-table 73109 wpIssueVoucherLogLine
+table 73109 wpIssueLogLine
 {
     Caption = 'Issue Voucher Log Line';
     DataClassification = ToBeClassified;
@@ -8,13 +8,13 @@ table 73109 wpIssueVoucherLogLine
         field(1; "Entry No."; Integer)
         {
             Caption = 'Entry No.';
-            TableRelation = wpIssueVoucherLog."Entry No.";
+            TableRelation = wpIssueLog."Entry No.";
         }
         field(2; "Line No."; Integer)
         {
             Caption = 'Line No.';
         }
-        field(10; Type; Enum wpIssueVoucherLogLineType)
+        field(10; Type; Enum wpIssueLogLineType)
         {
             Caption = 'Type';
         }

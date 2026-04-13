@@ -1,4 +1,4 @@
-enum 73105 wpIssueVoucherLogLineType
+enum 73105 wpIssueLogLineType
 {
     Extensible = true;
 

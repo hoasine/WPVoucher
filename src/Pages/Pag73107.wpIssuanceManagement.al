@@ -416,8 +416,8 @@ page 73107 "Issuance Management"
 
     local procedure SaveIssueVoucherLog(VoucherID: Code[20]; var TempScannedVouchers: Record "LSC POS Data Entry" temporary)
     var
-        VoucherLog: Record wpIssueVoucherLog;
-        VoucherLogLine: Record wpIssueVoucherLogLine;
+        VoucherLog: Record wpIssueLog;
+        VoucherLogLine: Record wpIssueLogLine;
         TempRec: Record "LSC Trans. Sales Entry" temporary;
         ReceiptBuffer: Record "Name/Value Buffer" temporary;
         LineNo: Integer;
@@ -694,8 +694,8 @@ page 73107 "Issuance Management"
     local procedure AddReceiptToTemp(ReceiptNo: Code[20])
     var
         TempRec: Record "LSC Trans. Sales Entry" temporary;
-        logVoucherEntry: Record wpIssueVoucherLog;
-        logVoucherEntryLine: Record wpIssueVoucherLogLine;
+        logEntry: Record wpIssueLog;
+        logEntryLine: Record wpIssueLogLine;
         VoucherLevel: Enum "Item Voucher Level";
         tbSalesReceivables: Record "Sales & Receivables Setup";
         VoucherBudgetID: Code[20];
@@ -767,9 +767,9 @@ page 73107 "Issuance Management"
         end;
 
         //loại trừ bill đã redeemp
-        logVoucherEntryLine.Reset();
-        logVoucherEntryLine.SetRange("Document No.", ReceiptNo);
-        if logVoucherEntryLine.FindSet() then begin
+        logEntryLine.Reset();
+        logEntryLine.SetRange("Document No.", ReceiptNo);
+        if logEntryLine.FindSet() then begin
             Message('The bill %1 has already been used. Please use another bill.', ReceiptNo);
             exit;
         end;
@@ -782,10 +782,10 @@ page 73107 "Issuance Management"
             end;
 
             //Giới hạn số lần redeemp trong ngày
-            logVoucherEntry.Reset();
-            logVoucherEntry.SetRange("Member Card", MembershipCard);
-            logVoucherEntry.SetRange("Redeemp Date", Today);
-            quantityOfDay := logVoucherEntry.Count();
+            logEntry.Reset();
+            logEntry.SetRange("Member Card", MembershipCard);
+            logEntry.SetRange("Redeemp Date", Today);
+            quantityOfDay := logEntry.Count();
             tbSalesReceivables.Get();
             if tbSalesReceivables."Quantity Exchange of Day" <> 0 then
                 if quantityOfDay > tbSalesReceivables."Quantity Exchange of Day" then begin
@@ -1031,8 +1031,8 @@ page 73107 "Issuance Management"
     var
         wpVoucherMaint: Record wpVoucherMaintenance;
         wpMemberVoucher: Record wpMemberVoucher;
-        logVoucherEntry: Record wpIssueVoucherLog;
-        logVoucherEntryLine: Record wpIssueVoucherLogLine;
+        logEntry: Record wpIssueLog;
+        logEntryLine: Record wpIssueLogLine;
     begin
         MaxReceiptAllowed := 0;
 
@@ -1056,16 +1056,16 @@ page 73107 "Issuance Management"
         //Giới hạn số voucher được redeemo trong ngày theo từng campaigns
         if IsMemberType = true then begin
             //Giới hạn số lần redeemp trong ngày
-            logVoucherEntry.Reset();
-            logVoucherEntry.SetRange("Member Card", MembershipCard);
-            logVoucherEntry.SetRange("Redeemp Date", Today);
-            logVoucherEntry.SetRange("Voucher ID", SelectedVoucherID);
-            logVoucherEntry.CalcSums("Voucher Count");
-            if logVoucherEntry."Voucher Count" >= wpMemberVoucher."Max Voucher Qty" then begin
-                Message('The customer has exceeded %1/%2 the number of vouchers allowed for the day.', logVoucherEntry."Voucher Count", wpMemberVoucher."Max Voucher Qty");
+            logEntry.Reset();
+            logEntry.SetRange("Member Card", MembershipCard);
+            logEntry.SetRange("Redeemp Date", Today);
+            logEntry.SetRange("Voucher ID", SelectedVoucherID);
+            logEntry.CalcSums("Voucher Count");
+            if logEntry."Voucher Count" >= wpMemberVoucher."Max Voucher Qty" then begin
+                Message('The customer has exceeded %1/%2 the number of vouchers allowed for the day.', logEntry."Voucher Count", wpMemberVoucher."Max Voucher Qty");
                 exit(false);
             end else
-                MaxVoucherAllowed := logVoucherEntry."Voucher Count"
+                MaxVoucherAllowed := logEntry."Voucher Count"
         end;
 
         if wpMemberVoucher."Receipt Qty" > MaxReceiptAllowed then

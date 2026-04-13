@@ -172,8 +172,8 @@ codeunit 73101 "wpTakaVoucherValidation"
 
     local procedure VoucherBelongsToMember(EntryCode: Code[20]; MemberCardNo: Code[20]): Boolean
     var
-        IssueLog: Record wpIssueVoucherLog;
-        IssueLogLine: Record wpIssueVoucherLogLine;
+        IssueLog: Record wpIssueLog;
+        IssueLogLine: Record wpIssueLogLine;
     begin
         // Find the log line that contains this entry code
         IssueLogLine.Reset();
