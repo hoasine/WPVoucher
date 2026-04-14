@@ -1,4 +1,4 @@
-table 73104 "POS Entry Document Buffer"
+table 70011 "POS Entry Document Buffer"
 {
     TableType = Temporary;
 

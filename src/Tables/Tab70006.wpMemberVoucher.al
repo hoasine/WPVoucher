@@ -3,7 +3,7 @@ namespace worldpos.Voucher.Configuration;
 using Microsoft.Inventory.Item;
 using worldpos.Voucher.Configuration;
 
-table 73105 wpMemberVoucher
+table 70006 wpMemberVoucher
 {
     Caption = 'Member Voucher';
     DataClassification = ToBeClassified;

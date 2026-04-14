@@ -6,7 +6,7 @@ using Microsoft.Foundation.AuditCodes;
 using Microsoft.Sales.Setup;
 using Microsoft.Purchases.Document;
 
-table 73101 wpVoucherMaintenance
+table 70012 wpVoucherMaintenance
 {
     Caption = 'Voucher Maintenance Setup';
     DrillDownPageId = wpVoucherMaintenanceCard;

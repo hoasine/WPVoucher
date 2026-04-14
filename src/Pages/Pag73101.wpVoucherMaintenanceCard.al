@@ -89,6 +89,7 @@ page 73101 wpVoucherMaintenanceCard
                 }
                 field("Reason Code"; Rec."Reason Code")
                 {
+                    Caption = 'Ref to GL';
                     ApplicationArea = Basic, Suite;
                     Editable = IsPageEditable;
                 }

@@ -30,7 +30,7 @@ page 73102 wpVoucherMaintenanceLists
                 field(ID; Rec.ID)
                 {
                     ApplicationArea = Basic, Suite;
-                    Caption = 'Budget ID';
+                    Caption = 'Voucher ID';
                     ToolTip = 'Specifies the ID for voucher maintenance.';
                 }
                 field(Description; Rec.Description)

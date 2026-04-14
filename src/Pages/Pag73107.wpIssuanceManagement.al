@@ -1124,7 +1124,7 @@ page 73107 "Issuance Management"
         TotalItemValid: Decimal;
         VoucherStyle: Text;
         wpVoucherItem: Record wpVoucherItemDiscStp;
-        VoucherVendor: Record wpVoucherVendor;
+        // VoucherVendor: Record wpVoucherVendor;
         MemberAccount: Text;
         MembershipCard: Text;
         MemberContact: Text;
