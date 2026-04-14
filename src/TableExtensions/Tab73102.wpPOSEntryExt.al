@@ -20,5 +20,9 @@ tableextension 73102 wpPOSEntryExt extends "LSC POS Data Entry"
         {
             Caption = 'Date Redeemed';
         }
+        field(73105; "Date Procesed"; Date)
+        {
+            Caption = 'Date Procesed';
+        }
     }
 }

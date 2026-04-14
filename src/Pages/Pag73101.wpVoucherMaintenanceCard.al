@@ -87,8 +87,7 @@ page 73101 wpVoucherMaintenanceCard
                     ApplicationArea = Basic, Suite;
                     Editable = IsPageEditable;
                 }
-
-                field("Enable Tracking"; Rec."Enable Tracking")
+                field("Reason Code"; Rec."Reason Code")
                 {
                     ApplicationArea = Basic, Suite;
                     Editable = IsPageEditable;

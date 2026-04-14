@@ -182,6 +182,8 @@ page 73121 "wp POS Entry Import Preview"
             exit;
 
         POSDataEntry.Reset();
+        POSDataEntry.SetCurrentKey("Created by Receipt No.", "Created by Line No.");
+        POSDataEntry.SetRange("Created by Receipt No.", SelectedVoucherID);
         POSDataEntry.SetRange("Document No.", SelectedVoucherID);
         if POSDataEntry.FindLast() then
             NextLineNo := POSDataEntry."Created by Line No." + 1000

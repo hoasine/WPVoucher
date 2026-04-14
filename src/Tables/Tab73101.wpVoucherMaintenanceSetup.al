@@ -2,6 +2,7 @@ namespace worldpos.Voucher.Configuration;
 
 using worldpos.Voucher.Document;
 using Microsoft.Foundation.NoSeries;
+using Microsoft.Foundation.AuditCodes;
 using Microsoft.Sales.Setup;
 using Microsoft.Purchases.Document;
 
@@ -135,6 +136,12 @@ table 73101 wpVoucherMaintenance
             IF ("Member Type" = CONST(Club)) "LSC Member Club";
             DataClassification = CustomerContent;
         }
+        field(105; "Reason Code"; Code[20])
+        {
+            Caption = 'Reason Code';
+            TableRelation = "Reason Code".Code where(Description = CONST('TAKAVC'));
+        }
+
     }
     keys
     {
