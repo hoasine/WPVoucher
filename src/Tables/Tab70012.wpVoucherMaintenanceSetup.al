@@ -139,7 +139,7 @@ table 70012 wpVoucherMaintenance
         field(105; "Reason Code"; Code[20])
         {
             Caption = 'Reason Code';
-            TableRelation = "Reason Code".Code where(Description = CONST('TAKAVC'));
+            TableRelation = "Reason Code".Code where("LSC Group" = CONST('TAKAVC'));
         }
 
     }

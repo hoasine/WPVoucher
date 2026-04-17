@@ -99,6 +99,7 @@ codeunit 73102 wpVoucherToGL
         GenJournalLine."Bal. Account Type" := GenJournalLine."Bal. Account Type"::"G/L Account";
         GenJournalLine."Bal. Account No." := '1310';
         GenJournalLine.Description := StrSubstNo('Activate Taka voucher %1', tbwpVoucherMaintenance."Reason Code");
+        GenJournalLine."Reason Code" := tbwpVoucherMaintenance."Reason Code";
         GenJournalLine.Correction := true;
         GenJournalLine.Insert();
 

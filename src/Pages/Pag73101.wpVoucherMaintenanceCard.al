@@ -137,6 +137,11 @@ page 73101 wpVoucherMaintenanceCard
                         exit;
                     end;
 
+                    if (Rec."Reason Code" = '') then begin
+                        Message('Please choose Ref to GL.');
+                        exit;
+                    end;
+
                     if Rec.ID = '' then
                         Error('Invalid data. Please check again!');
 
