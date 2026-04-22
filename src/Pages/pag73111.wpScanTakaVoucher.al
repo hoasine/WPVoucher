@@ -47,8 +47,6 @@ page 73111 "Scan Taka Voucher"
                     Editable = false;
                     Style = Strong;
                 }
-
-
                 field(MaxVoucherQty; MaxVoucherQty - MaxVoucherAllowed)
                 {
                     Caption = 'Max Voucher Qty';
@@ -146,14 +144,15 @@ page 73111 "Scan Taka Voucher"
                 Promoted = true;
                 PromotedCategory = Process;
                 PromotedIsBig = true;
-
                 trigger OnAction()
                 var
                     PosEntry: Record "LSC POS Data Entry";
                     VoucherEntry: Record "LSC Voucher Entries";
                 begin
-                    if ScannedCount = 0 then
+                    if ScannedCount = 0 then begin
                         Message('Please scan at least one voucher before issuing.');
+                        exit;
+                    end;
 
                     if ScannedCount < VoucherLimit then begin
                         if not Confirm('Only %1 of %2 vouchers scanned. Issue anyway?', false, ScannedCount, VoucherLimit) then
@@ -166,7 +165,6 @@ page 73111 "Scan Taka Voucher"
                     Rec.Reset();
                     if Rec.FindSet() then
                         repeat
-                            // Update POS Data Entry status
                             PosEntry.Reset();
                             PosEntry.SetRange("Entry Code", Rec."Entry Code");
                             if PosEntry.FindFirst() then begin
@@ -174,17 +172,35 @@ page 73111 "Scan Taka Voucher"
                                 PosEntry.Status := PosEntry.Status::Redeemed;
                                 PosEntry."Date Redeemed" := Today;
                                 PosEntry.Modify(true);
-                            end;
-
-                            if VoucherID <> '' then begin
                                 VoucherEntry.Reset();
-                                VoucherEntry.SetRange("Voucher No.", Rec."Entry Code");
-                                if VoucherEntry.FindSet() then
-                                    repeat
+                                VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
+                                if not VoucherEntry.FindFirst() then begin
+                                    VoucherEntry.Init();
+                                    VoucherEntry."Voucher No." := PosEntry."Entry Code";
+                                    VoucherEntry."Store No." := PosEntry."Created in Store No.";
+                                    VoucherEntry."Receipt Number" := PosEntry."Created by Receipt No.";
+                                    VoucherEntry."Line No." := PosEntry."Created by Line No.";
+                                    VoucherEntry.Unposted := false;
+                                    VoucherEntry."Entry Type" := VoucherEntry."Entry Type"::Issued;
+                                    VoucherEntry.Date := Today;
+                                    VoucherEntry.Time := Time;
+                                    VoucherEntry.Amount := PosEntry.Amount;
+                                    VoucherEntry."Remaining Amount Now" := PosEntry.Amount;
+                                    VoucherEntry."Currency Code" := PosEntry."Currency Code";
+                                    VoucherEntry."Store Currency Code" := PosEntry."Currency Code";
+                                    VoucherEntry."Currency Factor" := 1;
+                                    VoucherEntry."One Time Redemption" := true;
+                                    VoucherEntry."Voucher Type" := PosEntry."Entry Type";
+                                    if VoucherID <> '' then
+                                        VoucherEntry."Voucher Id" := VoucherID;
+                                    VoucherEntry.Insert(true);
+                                end else begin
+                                    if VoucherID <> '' then begin
                                         VoucherEntry.LockTable();
                                         VoucherEntry."Voucher Id" := VoucherID;
                                         VoucherEntry.Modify(true);
-                                    until VoucherEntry.Next() = 0;
+                                    end;
+                                end;
                             end;
 
                         until Rec.Next() = 0;
@@ -192,6 +208,7 @@ page 73111 "Scan Taka Voucher"
                     IsIssued := true;
                     CurrPage.Close();
                 end;
+
 
             }
         }
@@ -293,6 +310,7 @@ page 73111 "Scan Taka Voucher"
                 TempScanned.Insert();
             until Rec.Next() = 0;
     end;
+
 
     trigger OnAfterGetRecord()
     begin

@@ -159,33 +159,9 @@ pageextension 73100 wpPosDataEntryExt extends "LSC POS Data Entries"
         VoucherEntry: Record "LSC Voucher Entries";
         NextLineNo: Integer;
     begin
-        VoucherEntry.Reset();
-        VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
-        if VoucherEntry.FindFirst() then begin
-            // PosEntry."Date Actived" := Today;
-            // PosEntry.Status := PosEntry.Status::Active;
-            // PosEntry.Modify();
+
+        if PosEntry.Status <> PosEntry.Status::" " then
             exit(false);
-        end;
-
-        VoucherEntry.Init();
-        VoucherEntry."Voucher No." := PosEntry."Entry Code";
-        VoucherEntry."Store No." := PosEntry."Created in Store No.";
-        VoucherEntry."Receipt Number" := PosEntry."Created by Receipt No.";
-        VoucherEntry."Line No." := PosEntry."Created by Line No.";
-        VoucherEntry.Unposted := false;
-        VoucherEntry."Entry Type" := VoucherEntry."Entry Type"::Issued;
-        VoucherEntry.Date := PosEntry."Date Created";
-        VoucherEntry.Time := Time;
-        VoucherEntry.Amount := PosEntry.Amount;
-        VoucherEntry."Remaining Amount Now" := PosEntry.Amount;
-        VoucherEntry."Currency Code" := PosEntry."Currency Code";
-        VoucherEntry."Store Currency Code" := PosEntry."Currency Code";
-        VoucherEntry."Currency Factor" := 1;
-        VoucherEntry."One Time Redemption" := true;
-        VoucherEntry."Voucher Type" := PosEntry."Entry Type";
-
-        VoucherEntry.Insert(true);
 
         PosEntry."Date Actived" := Today;
         PosEntry.Status := PosEntry.Status::Active;
