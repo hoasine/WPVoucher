@@ -2,16 +2,6 @@ codeunit 73101 "wpTakaVoucherValidation"
 {
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Infocode Utility", 'OnBeforeTypeApplyToEntry', '', false, false)]
     local procedure OnBeforeTypeApplyToEntry(Input: Text; MgrKeyActive: Boolean; Training: Boolean; var TSError: Boolean; var Line: Record "LSC Pos Trans. Line"; var Trans: Record "LSC POS Transaction"; var InfoCodeRec: Record "LSC Infocode"; var ErrorTxt: Text; var IsHandled: Boolean; var ReturnValue: Boolean)
-    // local procedure OnBeforeDataEntryCheckAmount(
-    // MgrKeyActive: Boolean;
-    // RLineAmount: Decimal;
-    // var Line: Record "LSC Pos Trans. Line";
-    // var Trans: Record "LSC POS Transaction";
-    // var DataEntry: Record "LSC POS Data Entry";
-    // var DataEntryType: Record "LSC POS Data Entry Type";
-    // var ErrorTxt: Text;
-    // var IsHandled: Boolean;
-    // var ReturnValue: Boolean)
     var
         VoucherEntry: Record "LSC Voucher Entries";
         PosDataEntry: Record "LSC POS Data Entry";
@@ -265,35 +255,44 @@ codeunit 73101 "wpTakaVoucherValidation"
         exit(true);
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
-    local procedure OnBeforeInsertPaymentEntryV2(var POSTransaction: Record "LSC POS Transaction"; var POSTransLineTemp: Record "LSC POS Trans. Line" temporary; var TransPaymentEntry: Record "LSC Trans. Payment Entry")
-    var
-        TransInfoCodeEntry: Record "LSC POS Trans. Infocode Entry";
-        PosDataEntry: Record "LSC POS Data Entry";
-        PosFuncProfile: Record "LSC POS Func. Profile";
-        Global_g: Codeunit "LSC POS Session";
+    // [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
+    // local procedure OnBeforeInsertPaymentEntryV2(var POSTransaction: Record "LSC POS Transaction"; var POSTransLineTemp: Record "LSC POS Trans. Line" temporary; var TransPaymentEntry: Record "LSC Trans. Payment Entry")
+    // var
+    //     TransInfoCodeEntry: Record "LSC POS Trans. Infocode Entry";
+    //     PosDataEntry: Record "LSC POS Data Entry";
+    //     PosFuncProfile: Record "LSC POS Func. Profile";
+    //     Global_g: Codeunit "LSC POS Session";
+    // begin
+    //     PosFuncProfile.Get(Global_g.FunctionalityProfileID);
+    //     if PosFuncProfile."TS Data Entries" then begin
+
+    //     end else begin
+    //         TransInfoCodeEntry.Reset();
+    //         TransInfoCodeEntry.SetRange("Receipt No.", POSTransaction."Receipt No.");
+    //         TransInfoCodeEntry.SetRange("Store No.", POSTransaction."Store No.");
+    //         TransInfoCodeEntry.SetRange("POS Terminal No.", POSTransaction."POS Terminal No.");
+    //         TransInfoCodeEntry.SetFilter("Information", '<>''''');
+
+    //         if TransInfoCodeEntry.FindSet() then
+    //             repeat
+    //                 PosDataEntry.Reset();
+    //                 PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
+    //                 if PosDataEntry.FindFirst() then begin
+    //                     PosDataEntry.LockTable();
+    //                     PosDataEntry.Status := PosDataEntry.Status::Used;
+    //                     PosDataEntry.Modify(true);
+    //                 end;
+    //             until TransInfoCodeEntry.Next() = 0;
+    //     end;
+    // end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforePosDataEntryInsert', '', false, false)]
+    local procedure OnBeforePosDataEntryInsert(var DataEntry: Record "LSC POS Data Entry"; var ErrorText: Text; var IsHandled: Boolean; var ReturnValue: Boolean)
     begin
-        PosFuncProfile.Get(Global_g.FunctionalityProfileID);
-        if PosFuncProfile."TS Data Entries" then begin
+        //Kiểm tra voucher no có hay không 
+        //Kiểm tra nó có thuộc Taka voucher | Pos data type active voucher = true
 
-        end else begin
-            TransInfoCodeEntry.Reset();
-            TransInfoCodeEntry.SetRange("Receipt No.", POSTransaction."Receipt No.");
-            TransInfoCodeEntry.SetRange("Store No.", POSTransaction."Store No.");
-            TransInfoCodeEntry.SetRange("POS Terminal No.", POSTransaction."POS Terminal No.");
-            TransInfoCodeEntry.SetFilter("Information", '<>''''');
-
-            if TransInfoCodeEntry.FindSet() then
-                repeat
-                    PosDataEntry.Reset();
-                    PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
-                    if PosDataEntry.FindFirst() then begin
-                        PosDataEntry.LockTable();
-                        PosDataEntry.Status := PosDataEntry.Status::Used;
-                        PosDataEntry.Modify(true);
-                    end;
-                until TransInfoCodeEntry.Next() = 0;
-        end;
+        DataEntry.Status := DataEntry.Status::Used;
     end;
 }
 
