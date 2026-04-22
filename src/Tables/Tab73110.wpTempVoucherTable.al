@@ -13,6 +13,9 @@ table 73110 wpTempVoucherResult
         field(5; Denomination; Decimal) { }
         field(6; Qty; Integer) { }
         field(7; TotalAmount; Decimal) { }
+        field(8; SumTotal; Decimal) { }
+        field(9; ActualUsedHCM; Decimal) { }
+        field(10; ActualUsedHN; Decimal) { }
     }
 
     keys

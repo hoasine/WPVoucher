@@ -18,6 +18,7 @@ table 73109 wpIssueLogLine
         {
             Caption = 'Type';
         }
+
         field(20; "Document No."; Code[50])
         {
             Caption = 'Document No.';

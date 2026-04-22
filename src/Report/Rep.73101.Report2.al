@@ -22,7 +22,11 @@ report 73101 "Taka Voucher Campaign Summary"
             column(Denomination; Denomination) { }
             column(DateActived; DateActived) { }
             column(Qty; Qty) { }
-            column(TotalAmount; TotalAmount) { }
+            column(Total; TotalAmount) { }
+            column(HCM; ActualUsedHCM) { }
+            column(HN; ActualUsedHN) { }
+            column(All; ActualUsedBoth) { }
+            column(Variance; Variance) { }
 
             trigger OnPreDataItem()
             begin
@@ -48,6 +52,10 @@ report 73101 "Taka Voucher Campaign Summary"
                 DateActived := TempResult.ReportDate;
                 Qty := TempResult.Qty;
                 TotalAmount := TempResult.TotalAmount;
+                ActualUsedHCM := TempResult.ActualUsedHCM;
+                ActualUsedHN := TempResult.ActualUsedHN;
+                ActualUsedBoth := TempResult.ActualUsedHCM + TempResult.ActualUsedHN;
+                Variance := TempResult.TotalAmount - ActualUsedBoth
             end;
         }
     }
@@ -93,6 +101,44 @@ report 73101 "Taka Voucher Campaign Summary"
         }
     }
 
+    local procedure GetActualUsed(
+    CampaignID: Code[20];
+    ForDate: Date;
+    StoreCode: Code[20]
+): Decimal
+    var
+        PosEntry: Record "LSC POS Data Entry";
+        VoucherEntry: Record "LSC Voucher Entries";
+        TotalActual: Decimal;
+        WriteOff: Decimal;
+    begin
+        TotalActual := 0;
+
+        PosEntry.Reset();
+        PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+        PosEntry.SetRange("Created by Receipt No.", CampaignID);
+        PosEntry.SetRange("Date Applied", ForDate);
+        PosEntry.SetRange("Created in Store No.", StoreCode);
+        PosEntry.SetFilter("Status", '3');
+
+        if not PosEntry.FindSet() then
+            exit(0);
+
+        repeat
+            WriteOff := 0;
+            VoucherEntry.Reset();
+            VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
+            VoucherEntry.SetFilter("Entry Type", '=Redemption');
+            if VoucherEntry.FindFirst() then
+                WriteOff := VoucherEntry."Write Off Amount";
+
+            TotalActual += PosEntry.Amount - WriteOff;
+
+        until PosEntry.Next() = 0;
+
+        exit(TotalActual);
+    end;
+
     var
         DocumentNoFilter: Code[20];
         DateActivedFilter: Text[100];
@@ -106,7 +152,11 @@ report 73101 "Taka Voucher Campaign Summary"
         Qty: Integer;
         TotalAmount: Decimal;
         ApplicationManagement: Codeunit "Filter Tokens";
-        TempResult: Record wpTempVoucherResult temporary; // temp table below
+        TempResult: Record wpTempVoucherResult temporary;
+        Variance: Decimal;
+        ActualUsedHCM: Decimal;
+        ActualUsedHN: Decimal;
+        ActualUsedBoth: Decimal;
 
     local procedure BuildResultTable()
     var
@@ -122,52 +172,59 @@ report 73101 "Taka Voucher Campaign Summary"
         TempResult.DeleteAll();
         RowNo := 0;
 
-        // Parse date range
         if StrPos(DateActivedFilter, '..') > 0 then begin
-            Evaluate(StartDate, CopyStr(DateActivedFilter, 1, StrPos(DateActivedFilter, '..') - 1));
-            Evaluate(EndDate, CopyStr(DateActivedFilter, StrPos(DateActivedFilter, '..') + 2));
+            Evaluate(StartDate, CopyStr(DateActivedFilter, 1,
+                StrPos(DateActivedFilter, '..') - 1));
+            Evaluate(EndDate, CopyStr(DateActivedFilter,
+                StrPos(DateActivedFilter, '..') + 2));
         end else begin
             Evaluate(StartDate, DateActivedFilter);
             EndDate := StartDate;
         end;
 
-        // Filter campaigns
+        VoucherSetup.Reset();
         if DocumentNoFilter <> '' then
             VoucherSetup.SetRange(ID, DocumentNoFilter);
 
-        if VoucherSetup.FindSet() then
-            repeat
-                // Get denomination from first POS entry for this campaign
-                Denom := 0;
+        if not VoucherSetup.FindSet() then
+            exit;
+
+        repeat
+            Denom := 0;
+            PosEntry.Reset();
+            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+            PosEntry.SetRange("Created by Receipt No.", VoucherSetup.ID);
+            if PosEntry.FindFirst() then
+                Denom := PosEntry.Amount;
+
+            CurrentDate := StartDate;
+            while CurrentDate <= EndDate do begin
+
+
                 PosEntry.Reset();
-                PosEntry.SetRange("Entry Type", 'TK VOUCHER');
-                PosEntry.SetRange("Document No.", VoucherSetup.ID);
-                if PosEntry.FindFirst() then
-                    Denom := PosEntry.Amount;
+                PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+                PosEntry.SetRange("Created by Receipt No.", VoucherSetup.ID);
+                PosEntry.SetRange("Date Applied", CurrentDate);
+                PosEntry.SetFilter("Status", '3');
+                QtyCount := PosEntry.Count();
 
-                // Loop each date in range
-                CurrentDate := StartDate;
-                while CurrentDate <= EndDate do begin
-                    // Count activated vouchers for this campaign + date
-                    PosEntry.Reset();
-                    PosEntry.SetRange("Entry Type", 'TK VOUCHER');
-                    PosEntry.SetRange("Document No.", VoucherSetup.ID);
-                    PosEntry.SetRange("Date Actived", CurrentDate);
-                    QtyCount := PosEntry.Count();
+                RowNo += 1;
+                TempResult.RowNo := RowNo;
+                TempResult.ReportDate := CurrentDate;
+                TempResult.CampaignID := VoucherSetup.ID;
+                TempResult.CampaignName := VoucherSetup.Description;
+                TempResult.Denomination := Denom;
+                TempResult.Qty := QtyCount;
+                TempResult.TotalAmount := Denom * QtyCount;
+                TempResult.ActualUsedHCM :=
+                    GetActualUsed(VoucherSetup.ID, CurrentDate, 'HCM');
+                TempResult.ActualUsedHN :=
+                    GetActualUsed(VoucherSetup.ID, CurrentDate, 'HN');
+                TempResult.Insert();
 
-                    //Querry: voucher ID, date => Amount con lai. => Total Amount - Write Off Amount = Actual Amount
-                    RowNo += 1;
-                    TempResult.RowNo := RowNo;
-                    TempResult.ReportDate := CurrentDate;
-                    TempResult.CampaignID := VoucherSetup.ID;
-                    TempResult.CampaignName := VoucherSetup.Description;
-                    TempResult.Denomination := Denom;
-                    TempResult.Qty := QtyCount;
-                    TempResult.TotalAmount := Denom * QtyCount;
-                    TempResult.Insert();
+                CurrentDate := CalcDate('<+1D>', CurrentDate);
+            end;
 
-                    CurrentDate := CalcDate('<+1D>', CurrentDate);
-                end;
-            until VoucherSetup.Next() = 0;
+        until VoucherSetup.Next() = 0;
     end;
 }
