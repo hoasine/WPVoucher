@@ -268,23 +268,30 @@ codeunit 73101 "wpTakaVoucherValidation"
     var
         TransInfoCodeEntry: Record "LSC POS Trans. Infocode Entry";
         PosDataEntry: Record "LSC POS Data Entry";
+        PosFuncProfile: Record "LSC POS Func. Profile";
+        Global_g: Codeunit "LSC POS Session";
     begin
-        TransInfoCodeEntry.Reset();
-        TransInfoCodeEntry.SetRange("Receipt No.", POSTransaction."Receipt No.");
-        TransInfoCodeEntry.SetRange("Store No.", POSTransaction."Store No.");
-        TransInfoCodeEntry.SetRange("POS Terminal No.", POSTransaction."POS Terminal No.");
-        TransInfoCodeEntry.SetFilter("Information", '<>''''');
+        PosFuncProfile.Get(Global_g.FunctionalityProfileID);
+        if PosFuncProfile."TS Data Entries" then begin
 
-        if TransInfoCodeEntry.FindSet() then
-            repeat
-                PosDataEntry.Reset();
-                PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
-                if PosDataEntry.FindFirst() then begin
-                    PosDataEntry.LockTable();
-                    PosDataEntry.Status := PosDataEntry.Status::Used;
-                    PosDataEntry.Modify(true);
-                end;
-            until TransInfoCodeEntry.Next() = 0;
+        end else begin
+            TransInfoCodeEntry.Reset();
+            TransInfoCodeEntry.SetRange("Receipt No.", POSTransaction."Receipt No.");
+            TransInfoCodeEntry.SetRange("Store No.", POSTransaction."Store No.");
+            TransInfoCodeEntry.SetRange("POS Terminal No.", POSTransaction."POS Terminal No.");
+            TransInfoCodeEntry.SetFilter("Information", '<>''''');
+
+            if TransInfoCodeEntry.FindSet() then
+                repeat
+                    PosDataEntry.Reset();
+                    PosDataEntry.SetRange("Entry Code", TransInfoCodeEntry.Information);
+                    if PosDataEntry.FindFirst() then begin
+                        PosDataEntry.LockTable();
+                        PosDataEntry.Status := PosDataEntry.Status::Used;
+                        PosDataEntry.Modify(true);
+                    end;
+                until TransInfoCodeEntry.Next() = 0;
+        end;
     end;
 }
 
