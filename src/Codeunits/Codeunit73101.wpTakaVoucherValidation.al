@@ -44,12 +44,7 @@ codeunit 73101 "wpTakaVoucherValidation"
             exit;
         end;
 
-        // Kiểm tra voucher có thuộc chương trình VoucherID setup không
-        VoucherID := VoucherEntry."Voucher Id";
-        if VoucherID = '' then begin
-            ErrorTxt := 'Not found Voucher ID.';
-            exit;
-        end;
+
 
         // check voucher phải ở status redeemp
         if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
@@ -63,6 +58,13 @@ codeunit 73101 "wpTakaVoucherValidation"
             end;
             IsHandled := true;
             ReturnValue := false;
+            exit;
+        end;
+
+        // Kiểm tra voucher có thuộc chương trình VoucherID setup không
+        VoucherID := VoucherEntry."Voucher Id";
+        if VoucherID = '' then begin
+            ErrorTxt := 'Not found Voucher ID.';
             exit;
         end;
 

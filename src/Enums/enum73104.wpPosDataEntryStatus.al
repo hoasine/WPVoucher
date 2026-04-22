@@ -1,4 +1,3 @@
-
 enum 73104 "Status"
 {
     Extensible = true;
