@@ -406,7 +406,7 @@ page 73107 "Issuance Management"
         VoucherPage.RunModal();
 
         if VoucherPage.WasIssued() then begin
-            MarkRedeemedItem(VoucherID);
+            // MarkRedeemedItem(VoucherID);
             VoucherPage.GetScannedVouchers(TempScannedVouchers);
             SaveIssueVoucherLog(VoucherID, TempScannedVouchers);
             Message('Voucher issuance completed successfully!');
@@ -482,33 +482,33 @@ page 73107 "Issuance Management"
             until TempScannedVouchers.Next() = 0;
     end;
 
-    local procedure MarkRedeemedItem(VoucherID: Code[20])
-    var
-        salesEntry: Record "LSC Trans. Sales Entry";
-        TempRec: Record "LSC Trans. Sales Entry" temporary;
-    begin
-        TempRec.Copy(Rec, true);
-        TempRec.Reset();
-        if not TempRec.FindSet() then
-            exit;
+    // local procedure MarkRedeemedItem(VoucherID: Code[20])
+    // var
+    //     salesEntry: Record "LSC Trans. Sales Entry";
+    //     TempRec: Record "LSC Trans. Sales Entry" temporary;
+    // begin
+    //     TempRec.Copy(Rec, true);
+    //     TempRec.Reset();
+    //     if not TempRec.FindSet() then
+    //         exit;
 
-        repeat
-            if TempRec."Voucher Status Temp" = TempRec."Voucher Status Temp"::Valid then begin
-                salesEntry.Reset();
-                salesEntry.SetRange("Store No.", TempRec."Store No.");
-                salesEntry.SetRange("POS Terminal No.", TempRec."POS Terminal No.");
-                salesEntry.SetRange("Transaction No.", TempRec."Transaction No.");
-                salesEntry.SetRange("Line No.", TempRec."Line No.");
-                if salesEntry.FindFirst() then begin
-                    salesEntry.LockTable();
-                    salesEntry."Is Redeemption" := true;
-                    salesEntry."Voucher ID" := VoucherID;
-                    salesEntry."Voucher Status Temp" := salesEntry."Voucher Status Temp"::Valid;
-                    salesEntry.Modify(true);
-                end;
-            end;
-        until TempRec.Next() = 0;
-    end;
+    //     repeat
+    //         if TempRec."Voucher Status Temp" = TempRec."Voucher Status Temp"::Valid then begin
+    //             salesEntry.Reset();
+    //             salesEntry.SetRange("Store No.", TempRec."Store No.");
+    //             salesEntry.SetRange("POS Terminal No.", TempRec."POS Terminal No.");
+    //             salesEntry.SetRange("Transaction No.", TempRec."Transaction No.");
+    //             salesEntry.SetRange("Line No.", TempRec."Line No.");
+    //             if salesEntry.FindFirst() then begin
+    //                 salesEntry.LockTable();
+    //                 salesEntry."Is Redeemption" := true;
+    //                 salesEntry."Voucher ID" := VoucherID;
+    //                 salesEntry."Voucher Status Temp" := salesEntry."Voucher Status Temp"::Valid;
+    //                 salesEntry.Modify(true);
+    //             end;
+    //         end;
+    //     until TempRec.Next() = 0;
+    // end;
 
     procedure GetAllowedVoucherQty(VoucherID: Code[20]; var voucherMaxQty: Integer;
         var VoucherQty: Integer; var VoucherAmount: Decimal; TotalSale: Decimal)
