@@ -19,7 +19,7 @@ report 73100 "Taka Voucher Report"
             UseTemporary = true;
             column(Date; "Row Date") { }
             column(Brand; "Brand") { }
-            column(TransNo; "Trans No") { }
+            column(TransNo; "Trans No Text") { }
             column(POS; "POS Terminal") { }
             column(BillValue; "Bill Value") { }
             column(VoucherQty; Format(Round("Voucher Qty", 0.01))) { }
@@ -42,7 +42,7 @@ report 73100 "Taka Voucher Report"
 
             column(DateUsed; "Row Date") { }
             column(BrandUsed; "Brand") { }
-            column(TransNoUsed; "Trans No") { }
+            column(TransNoUsed; "Trans No Text") { }
             column(PosUsed; "POS Terminal") { }
             column(BillValueAmount; "Bill Value") { }
             column(VoucherQtyUsed; Format(Round("Voucher Qty", 0.01))) { }
@@ -269,18 +269,24 @@ report 73100 "Taka Voucher Report"
         VoucherCount: Integer;
         TotalBillValue: Decimal;
         EntryNo: Integer;
-        FirstTransNo: Integer;
-        FirstPOS: Text[100];
-        FirstReceiptFound: Boolean;
+        // FirstTransNo: Integer;
+        // FirstPOS: Text[100];
+        // FirstReceiptFound: Boolean;
+
+        TransNoList: Text[500];
+        POSList: Text[500];
+        TransNoEntry: Text[20];
+        POSEntry: Text[20];
+
         SpecialGrpCode: Code[50];
         AppliedReceiptNo: Code[50];
     begin
         VoucherCount := 0;
         TotalBillValue := 0;
         EntryNo := 0;
-        FirstReceiptFound := false;
-        FirstTransNo := 0;
-        FirstPOS := '';
+        // FirstReceiptFound := false;
+        // FirstTransNo := 0;
+        // FirstPOS := '';
         VoucherID := '';
         AppliedReceiptNo := '';
 
@@ -314,8 +320,8 @@ report 73100 "Taka Voucher Report"
             TransSalesEntry.Reset();
             TransSalesEntry.SetRange("Receipt No.", AppliedReceiptNo);
             if TransSalesEntry.FindFirst() then begin
-                FirstTransNo := TransSalesEntry."Transaction No.";
-                FirstPOS := TransSalesEntry."POS Terminal No.";
+                TransNoList := Format(TransSalesEntry."Transaction No.");
+                POSList := TransSalesEntry."POS Terminal No.";
             end;
 
             //Repeat tất cả item lines của receipt này từ bảng TransSaleEntry, so sánh với
@@ -326,7 +332,8 @@ report 73100 "Taka Voucher Report"
                 repeat
                     if not IsLineExcluded(TransSalesEntry,
                         ExcludedDivisions, ExcludedItems) then
-                        TotalBillValue += TransSalesEntry."Price";
+                        if TransSalesEntry.Quantity < 0 then
+                            TotalBillValue += TransSalesEntry."Price";
                 until TransSalesEntry.Next() = 0;
 
             TransSalesEntry.Reset();
@@ -334,36 +341,39 @@ report 73100 "Taka Voucher Report"
             if TransSalesEntry.FindSet() then
                 repeat
                     if not IsLineExcluded(TransSalesEntry,
-                        ExcludedDivisions, ExcludedItems) then begin
-                        SpecialGrpCode := '';
-                        RetailItem.Reset();
-                        RetailItem.SetRange("No.", TransSalesEntry."Item No.");
-                        if RetailItem.FindFirst() then begin
-                            RetailItem.CalcFields("LSC Special Group Code");
-                            SpecialGrpCode := RetailItem."LSC Special Group Code";
-                        end;
-                        if SpecialGrpCode = '' then
-                            SpecialGrpCode := 'NO_GROUP';
+                        ExcludedDivisions, ExcludedItems) then
+                        if TransSalesEntry.Quantity < 0 then begin
+                            SpecialGrpCode := '';
+                            RetailItem.Reset();
+                            RetailItem.SetRange("No.", TransSalesEntry."Item No.");
+                            if RetailItem.FindFirst() then begin
+                                RetailItem.CalcFields("LSC Special Group Code");
+                                SpecialGrpCode := RetailItem."LSC Special Group Code";
+                            end;
+                            if SpecialGrpCode = '' then
+                                SpecialGrpCode := 'NO_GROUP';
 
-                        if (SpecialGroupFilter = '') or
-                           (SpecialGrpCode = SpecialGroupFilter) then begin
-                            TempGroupBuffer.Reset();
-                            TempGroupBuffer.SetRange("Brand", SpecialGrpCode);
-                            if TempGroupBuffer.FindFirst() then begin
-                                TempGroupBuffer."Bill Value" += TransSalesEntry."Price";
-                                TempGroupBuffer.Modify();
-                            end else begin
-                                TempGroupBuffer.Init();
-                                TempGroupBuffer."Brand" := SpecialGrpCode;
-                                TempGroupBuffer."Bill Value" := TransSalesEntry."Price";
-                                TempGroupBuffer.Insert();
+                            if (SpecialGroupFilter = '') or
+                               (SpecialGrpCode = SpecialGroupFilter) then begin
+                                TempGroupBuffer.Reset();
+                                TempGroupBuffer.SetRange("Brand", SpecialGrpCode);
+                                if TempGroupBuffer.FindFirst() then begin
+                                    TempGroupBuffer."Bill Value" += TransSalesEntry."Price";
+                                    TempGroupBuffer.Modify();
+                                end else begin
+                                    TempGroupBuffer.Init();
+                                    TempGroupBuffer."Brand" := SpecialGrpCode;
+                                    TempGroupBuffer."Bill Value" := TransSalesEntry."Price";
+                                    TempGroupBuffer.Insert();
+                                end;
                             end;
                         end;
-                    end;
                 until TransSalesEntry.Next() = 0;
 
             if not TempGroupBuffer.FindFirst() then begin
                 if SpecialGroupFilter <> '' then
+                    exit;
+                if TotalBillValue = 0 then
                     exit;
                 TempGroupBuffer.Init();
                 TempGroupBuffer."Brand" := '';
@@ -385,8 +395,8 @@ report 73100 "Taka Voucher Report"
                 OutputBuffer."Row Date" := RowDate;
                 OutputBuffer."Expire Date" := ExpireDate;
                 OutputBuffer."Brand" := TempGroupBuffer."Brand";
-                OutputBuffer."Trans No" := FirstTransNo;
-                OutputBuffer."POS Terminal" := FirstPOS;
+                OutputBuffer."Trans No Text" := TransNoList;
+                OutputBuffer."POS Terminal" := POSList;
                 OutputBuffer."Bill Value" := TempGroupBuffer."Bill Value";
                 OutputBuffer."Voucher Qty" := TempGroupBuffer."Voucher Qty";
                 OutputBuffer.Insert();
@@ -432,12 +442,22 @@ report 73100 "Taka Voucher Report"
                 //Lấy TransNo + POS
                 TransSalesEntry.Reset();
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
-                if TransSalesEntry.FindFirst() then
-                    if not FirstReceiptFound then begin
-                        FirstTransNo := TransSalesEntry."Transaction No.";
-                        FirstPOS := TransSalesEntry."POS Terminal No.";
-                        FirstReceiptFound := true;
+                if TransSalesEntry.FindFirst() then begin
+                    TransNoEntry := Format(TransSalesEntry."Transaction No.");
+                    POSEntry := TransSalesEntry."POS Terminal No.";
+                    if StrPos(TransNoList, TransNoEntry) = 0 then begin
+                        if TransNoList = '' then
+                            TransNoList := TransNoEntry
+                        else
+                            TransNoList := CopyStr(TransNoList + ';' + TransNoEntry, 1, 500);
                     end;
+                    if StrPos(POSList, POSEntry) = 0 then begin
+                        if POSList = '' then
+                            POSList := POSEntry
+                        else
+                            POSList := CopyStr(POSList + ';' + POSEntry, 1, 500);
+                    end;
+                end;
                 //Tính total bill
                 TransSalesEntry.Reset();
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
@@ -445,42 +465,44 @@ report 73100 "Taka Voucher Report"
                     repeat
                         if not IsLineExcluded(TransSalesEntry,
                             ExcludedDivisions, ExcludedItems) then
-                            TotalBillValue += TransSalesEntry."Price";
+                            if TransSalesEntry.Quantity < 0 then
+                                TotalBillValue += TransSalesEntry."Price";
                     until TransSalesEntry.Next() = 0;
                 TransSalesEntry.Reset();
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
                 if TransSalesEntry.FindSet() then
                     repeat
                         if not IsLineExcluded(TransSalesEntry,
-                            ExcludedDivisions, ExcludedItems) then begin
-                            SpecialGrpCode := '';
-                            RetailItem.Reset();
-                            RetailItem.SetRange("No.", TransSalesEntry."Item No.");
-                            if RetailItem.FindFirst() then begin
-                                RetailItem.CalcFields("LSC Special Group Code");
-                                SpecialGrpCode := RetailItem."LSC Special Group Code";
-                            end;
-                            if SpecialGrpCode = '' then
-                                SpecialGrpCode := 'NO_GROUP';
+                            ExcludedDivisions, ExcludedItems) then
+                            if TransSalesEntry.Quantity < 0 then begin
+                                SpecialGrpCode := '';
+                                RetailItem.Reset();
+                                RetailItem.SetRange("No.", TransSalesEntry."Item No.");
+                                if RetailItem.FindFirst() then begin
+                                    RetailItem.CalcFields("LSC Special Group Code");
+                                    SpecialGrpCode := RetailItem."LSC Special Group Code";
+                                end;
+                                if SpecialGrpCode = '' then
+                                    SpecialGrpCode := 'NO_GROUP';
 
-                            //Check Special Group Filter ở đây
-                            if (SpecialGroupFilter = '') or
-                               (SpecialGrpCode = SpecialGroupFilter) then begin
-                                TempGroupBuffer.Reset();
-                                TempGroupBuffer.SetRange("Brand", SpecialGrpCode);
-                                if TempGroupBuffer.FindFirst() then begin
-                                    TempGroupBuffer."Bill Value" +=
-                                        TransSalesEntry."Price";
-                                    TempGroupBuffer.Modify();
-                                end else begin
-                                    TempGroupBuffer.Init();
-                                    TempGroupBuffer."Brand" := SpecialGrpCode;
-                                    TempGroupBuffer."Bill Value" :=
-                                        TransSalesEntry."Price";
-                                    TempGroupBuffer.Insert();
+                                //Check Special Group Filter ở đây
+                                if (SpecialGroupFilter = '') or
+                                   (SpecialGrpCode = SpecialGroupFilter) then begin
+                                    TempGroupBuffer.Reset();
+                                    TempGroupBuffer.SetRange("Brand", SpecialGrpCode);
+                                    if TempGroupBuffer.FindFirst() then begin
+                                        TempGroupBuffer."Bill Value" +=
+                                            TransSalesEntry."Price";
+                                        TempGroupBuffer.Modify();
+                                    end else begin
+                                        TempGroupBuffer.Init();
+                                        TempGroupBuffer."Brand" := SpecialGrpCode;
+                                        TempGroupBuffer."Bill Value" :=
+                                            TransSalesEntry."Price";
+                                        TempGroupBuffer.Insert();
+                                    end;
                                 end;
                             end;
-                        end;
                     until TransSalesEntry.Next() = 0;
 
             until IssueLogLine2.Next() = 0;
@@ -488,6 +510,8 @@ report 73100 "Taka Voucher Report"
         //Skip nếu không có SpecialGroup Filter
         if not TempGroupBuffer.FindFirst() then begin
             if SpecialGroupFilter <> '' then
+                exit;
+            if TotalBillValue = 0 then
                 exit;
             TempGroupBuffer.Init();
             TempGroupBuffer."Brand" := '';
@@ -510,8 +534,10 @@ report 73100 "Taka Voucher Report"
             OutputBuffer."Row Date" := RowDate;
             OutputBuffer."Expire Date" := ExpireDate;
             OutputBuffer."Brand" := TempGroupBuffer."Brand";
-            OutputBuffer."Trans No" := FirstTransNo;
-            OutputBuffer."POS Terminal" := FirstPOS;
+            // OutputBuffer."Trans No" := FirstTransNo;
+            // OutputBuffer."POS Terminal" := FirstPOS;
+            OutputBuffer."Trans No Text" := TransNoList;
+            OutputBuffer."POS Terminal" := POSList;
             OutputBuffer."Bill Value" := TempGroupBuffer."Bill Value";
             OutputBuffer."Voucher Qty" := TempGroupBuffer."Voucher Qty";
             OutputBuffer.Insert();

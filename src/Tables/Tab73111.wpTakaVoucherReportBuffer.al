@@ -15,6 +15,10 @@ table 73111 "Taka Voucher Report Buffer"
         field(8; "POS Terminal"; Text[100]) { }
         field(9; "Bill Value"; Decimal) { }
         field(10; "Voucher Qty"; Decimal) { }
+        field(11; "Trans No Text"; Text[500])
+        {
+            Caption = 'Trans No';
+        }
     }
 
     keys
