@@ -5,6 +5,7 @@ codeunit 70013 "wpTakaVoucherValidation"
     var
         VoucherEntry: Record "LSC Voucher Entries";
         PosDataEntry: Record "LSC POS Data Entry";
+        PosDataEntryType: Record "LSC POS Data Entry Type";
         TransLine: Record "LSC Pos Trans. Line";
         TransLineTender: Record "LSC Pos Trans. Line";
         VoucherID: Code[20];
@@ -25,6 +26,14 @@ codeunit 70013 "wpTakaVoucherValidation"
             exit;
         end;
 
+        //Kiểm tra nếu không phải Takavoucher thì exit
+        Clear(PosDataEntryType);
+        PosDataEntryType.SetRange(Code, PosDataEntry."Entry Type");
+        PosDataEntryType.SetRange("Enable/ Activate Taka Voucher", true);
+        if not PosDataEntryType.FindSet() then begin
+            exit;
+        end;
+
         Clear(VoucherEntry);
         VoucherEntry.Reset();
         VoucherEntry.SetRange("Entry Type", VoucherEntry."Entry Type"::Issued);
@@ -33,7 +42,6 @@ codeunit 70013 "wpTakaVoucherValidation"
             ErrorTxt := 'Not found Voucher Entry Table.';
             exit;
         end;
-
 
         // check voucher phải ở status redeemp
         if PosDataEntry.Status <> PosDataEntry.Status::Redeemed then begin
