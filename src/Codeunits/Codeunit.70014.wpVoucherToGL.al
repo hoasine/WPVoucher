@@ -86,7 +86,6 @@ codeunit 70014 wpVoucherToGL
         GenJournalLine."Posting Date" := dateFilter;
         GenJournalLine."Document Date" := dateFilter;
         GenJournalLine."VAT Reporting Date" := dateFilter;
-        GenJournalLine."Dept" := dateFilter;
         GenJournalLine."Account Type" := GenJournalLine."Account Type"::"G/L Account";
         GenJournalLine."Source Code" := 'GENJNL';
         GenJournalLine."VAT %" := 0;
