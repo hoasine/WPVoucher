@@ -10,6 +10,7 @@ codeunit 70013 "wpTakaVoucherValidation"
         TransLineTender: Record "LSC Pos Trans. Line";
         VoucherID: Code[20];
         MemberCardNo: Code[20];
+        TransHeader: Record "LSC Transaction Header";
         itemValidList: text[500];
         totalAmountItemValid: Decimal;
         totalAmountTender: Decimal;
@@ -51,7 +52,26 @@ codeunit 70013 "wpTakaVoucherValidation"
                 PosDataEntry.Status::" ":
                     ErrorTxt := StrSubstNo('Voucher %1 is not activated.', voucherNo);
                 else
-                    ErrorTxt := StrSubstNo('Voucher %1 cannot be used (Status: %2).', voucherNo, PosDataEntry.Status);
+                    //ErrorTxt := StrSubstNo('Voucher %1 cannot be used (Status: %2).', voucherNo, PosDataEntry.Status);
+                    begin
+                    voucherNo := PosDataEntry."Entry Code";
+                    Clear(TransHeader);
+                    TransHeader.SetRange("Receipt No.", PosDataEntry."Applied by Receipt No.");
+                    if TransHeader.FindFirst() then
+                        Message('Voucher: %1 already used\Receipt: %2\POS: %3\Transaction Date: %4\Transaction Time: %5',
+                            voucherNo,
+                            PosDataEntry."Applied by Receipt No.",
+                            TransHeader."POS Terminal No.",
+                            Transheader.Date,
+                            TransHeader.Time)
+                    else
+                        Message('Voucher: %1 already used\Receipt: %2\POS: (not found)\Transaction Time: (not found)',
+                            voucherNo,
+                            PosDataEntry."Applied by Receipt No.");
+                    IsHandled := true;
+                    ReturnValue := false;
+                    exit;
+                end;
             end;
             IsHandled := true;
             ReturnValue := false;
@@ -295,6 +315,44 @@ codeunit 70013 "wpTakaVoucherValidation"
         //Kiểm tra nó có thuộc Taka voucher | Pos data type active voucher = true
 
         DataEntry.Status := DataEntry.Status::Used;
+    end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforeGetDataEntry', '', false, false)]
+    local procedure OnBeforeGetDataEntry(
+    Type: Code[10];
+    "Code": Code[20];
+    var DataEntry: Record "LSC POS Data Entry";
+    var ErrorText: Text;
+    var IsHandled: Boolean;
+    var OK: Boolean)
+    var
+        PosDataEntryType: Record "LSC POS Data Entry Type";
+        DataEntryLocal: Record "LSC POS Data Entry";
+        ReceiptNo: Code[20];
+        PosNo: Text[3];
+    begin
+        Clear(PosDataEntryType);
+        PosDataEntryType.SetRange(Code, Type);
+        PosDataEntryType.SetRange("Enable/ Activate Taka Voucher", true);
+        if not PosDataEntryType.FindFirst() then
+            exit;
+
+        if not DataEntryLocal.Get(Type, Code) then
+            exit;
+
+        if DataEntryLocal.Applied <> true then
+            exit;
+
+        ReceiptNo := DataEntryLocal."Applied by Receipt No.";
+        PosNo := CopyStr(ReceiptNo, 8, 3);
+
+        Message('Voucher: %1 already used\Receipt: %2\POS: %3',
+            Code,
+            ReceiptNo,
+            PosNo);
+
+        IsHandled := true;
+        OK := false;
     end;
 }
 
