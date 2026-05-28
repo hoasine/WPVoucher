@@ -8,6 +8,7 @@ codeunit 70014 wpVoucherToGL
     procedure UpdateVoucherToGLJournal()
     var
         tbwpVoucherMaintenance: Record wpVoucherMaintenance;
+        tbReasonCode: Record "Reason Code";
         tbSalesReceivables: Record "Sales & Receivables Setup";
         dateFilter: Date;
     begin
@@ -26,16 +27,23 @@ codeunit 70014 wpVoucherToGL
 
         if tbwpVoucherMaintenance.FindSet() then
             repeat
-                if tbwpVoucherMaintenance."Reason Code" = '' then begin
-                    exit;
+                if tbwpVoucherMaintenance."Reason Code" <> '' then begin
+                    //lấy account theo ReasonCode
+                    Clear(tbReasonCode);
+                    tbReasonCode.SetRange(Code, tbwpVoucherMaintenance."Reason Code");
+                    if tbReasonCode.FindSet() then begin
+                        if tbReasonCode."Account No." <> '' then begin
+                            if tbReasonCode."Bal. Account No." <> '' then begin
+                                ProcessOneCampaign(tbwpVoucherMaintenance, dateFilter, tbReasonCode);
+                                Commit;
+                            end;
+                        end;
+                    end;
                 end;
-
-                ProcessOneCampaign(tbwpVoucherMaintenance, dateFilter);
-                Commit;
             until tbwpVoucherMaintenance.Next() = 0;
     end;
 
-    local procedure ProcessOneCampaign(tbwpVoucherMaintenance: Record wpVoucherMaintenance; dateFilter: Date)
+    local procedure ProcessOneCampaign(tbwpVoucherMaintenance: Record wpVoucherMaintenance; dateFilter: Date; tbReasonCode: Record "Reason Code")
     var
         tbSalesReceivables: Record "Sales & Receivables Setup";
         GenJournalLine: Record "Gen. Journal Line";
@@ -93,11 +101,11 @@ codeunit 70014 wpVoucherToGL
 
         NoOfLines += 10000;
         GenJournalLine."Line No." := NoOfLines;
-        GenJournalLine."Account No." := '641815';
+        GenJournalLine."Account No." := tbReasonCode."Account No.";
         GenJournalLine.Amount := Round(TotalVoucherAmounr, 1);
         GenJournalLine."Amount (LCY)" := Round(TotalVoucherAmounr, 1);
         GenJournalLine."Bal. Account Type" := GenJournalLine."Bal. Account Type"::"G/L Account";
-        GenJournalLine."Bal. Account No." := '1310';
+        GenJournalLine."Bal. Account No." := tbReasonCode."Bal. Account No.";
         GenJournalLine.Description := StrSubstNo('Activate Taka voucher %1', tbwpVoucherMaintenance."Reason Code");
         GenJournalLine."Reason Code" := tbwpVoucherMaintenance."Reason Code";
         GenJournalLine.Correction := true;
