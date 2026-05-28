@@ -130,31 +130,73 @@ report 70036 "Taka Voucher Report"
         Used.Reset();
         Used.DeleteAll();
 
-        FillBuffer(2); // Redeem sheet
-        FillBuffer(3); // Used sheet
+        FillRedeemBufferFromIssueLog();
+        FillUsedBufferFromPosEntry();
     end;
 
-    local procedure FillBuffer(StatusFilter: Integer)
+    local procedure FillRedeemBufferFromIssueLog()
     var
         EntryType: Record "LSC POS Data Entry Type";
         PosEntry: Record "LSC POS Data Entry";
         IssueLogLine: Record "wpIssueLogLine";
         ProcessedEntries: List of [Text];
         DateToCheck: Date;
-        SheetType: Enum "Taka Voucher Sheet Type";
-        ShouldSkip: Boolean;
-        StatusEnum: Enum "Status";
+        DedupeKey: Text;
         EntryNo: Integer;
+    begin
+        EntryType.Reset();
+        EntryType.SetRange("Enable/ Activate Taka Voucher", true);
+        if VoucherTypeFilter <> '' then
+            EntryType.SetFilter("Code", VoucherTypeFilter);
+        if not EntryType.FindSet() then
+            exit;
+
+        repeat
+            IssueLogLine.Reset();
+            IssueLogLine.SetFilter("Type", '1');
+
+            if VoucherNoFilter <> '' then
+                IssueLogLine.SetFilter("Document No.", VoucherNoFilter);
+
+            if IssueLogLine.FindSet() then
+                repeat
+                    EntryNo := IssueLogLine."Entry No.";
+                    if EntryNo <> 0 then begin
+                        DedupeKey := Format(EntryNo);
+
+                        if not ProcessedEntries.Contains(DedupeKey) then begin
+                            PosEntry.Reset();
+                            PosEntry.SetRange("Entry Type", EntryType.Code);
+                            PosEntry.SetRange("Entry Code", IssueLogLine."Document No.");
+
+                            if DocumentNoFilter <> '' then
+                                PosEntry.SetFilter("Document No.", DocumentNoFilter);
+
+                            if PosEntry.FindFirst() then begin
+                                DateToCheck := PosEntry."Date Redeemed";
+
+                                if DateToCheck <> 0D then begin
+                                    if IsDateInFilter(DateToCheck) then begin
+                                        ProcessedEntries.Add(DedupeKey);
+                                        ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", Redeem.SheetType::Redeem, Redeem);
+                                    end;
+                                end;
+                            end;
+                        end;
+                    end;
+                until IssueLogLine.Next() = 0;
+
+        until EntryType.Next() = 0;
+    end;
+
+    local procedure FillUsedBufferFromPosEntry()
+    var
+        EntryType: Record "LSC POS Data Entry Type";
+        PosEntry: Record "LSC POS Data Entry";
+        ProcessedEntries: List of [Text];
+        DateToCheck: Date;
         DedupeKey: Text;
     begin
-        if StatusFilter = 2 then begin
-            SheetType := SheetType::Redeem;
-            StatusEnum := StatusEnum::Redeemed;
-        end else begin
-            SheetType := SheetType::Used;
-            StatusEnum := StatusEnum::Used;
-        end;
-
         EntryType.Reset();
         EntryType.SetRange("Enable/ Activate Taka Voucher", true);
         if VoucherTypeFilter <> '' then
@@ -165,7 +207,7 @@ report 70036 "Taka Voucher Report"
         repeat
             PosEntry.Reset();
             PosEntry.SetRange("Entry Type", EntryType.Code);
-            PosEntry.SetRange("Status", StatusEnum);
+            PosEntry.SetRange("Applied", true);
 
             if VoucherNoFilter <> '' then
                 PosEntry.SetFilter("Entry Code", VoucherNoFilter);
@@ -175,59 +217,32 @@ report 70036 "Taka Voucher Report"
 
             if PosEntry.FindSet() then
                 repeat
-                    ShouldSkip := false;
-                    DateToCheck := 0D;
-                    DedupeKey := '';
-
-                    if StatusFilter = 2 then begin
-                        DateToCheck := PosEntry."Date Redeemed";
-
-                        EntryNo := 0;
-                        IssueLogLine.Reset();
-                        IssueLogLine.SetFilter("Type", '1');
-                        IssueLogLine.SetRange("Document No.", PosEntry."Entry Code");
-                        if IssueLogLine.FindFirst() then
-                            EntryNo := IssueLogLine."Entry No.";
-
-                        if EntryNo = 0 then
-                            ShouldSkip := true
-                        else
-                            DedupeKey := Format(EntryNo);
-                    end else begin
+                    if PosEntry."Applied by Receipt No." <> '' then begin
                         DateToCheck := PosEntry."Date Applied";
+                        DedupeKey := PosEntry."Applied by Receipt No.";
 
-                        if PosEntry."Applied by Receipt No." = '' then
-                            ShouldSkip := true
-                        else
-                            DedupeKey := PosEntry."Applied by Receipt No.";
+                        if DateToCheck <> 0D then
+                            if IsDateInFilter(DateToCheck) then
+                                if not ProcessedEntries.Contains(DedupeKey) then begin
+                                    ProcessedEntries.Add(DedupeKey);
+                                    ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", Used.SheetType::Used, Used);
+                                end;
                     end;
-
-                    if not ShouldSkip then
-                        if DateToCheck = 0D then
-                            ShouldSkip := true;
-
-                    if not ShouldSkip then
-                        if (FilterDateStart <> 0D) and (FilterDateEnd <> 0D) then
-                            if (DateToCheck < FilterDateStart) or (DateToCheck > FilterDateEnd) then
-                                ShouldSkip := true;
-
-                    if not ShouldSkip then begin
-                        if ProcessedEntries.Contains(DedupeKey) then
-                            ShouldSkip := true
-                        else
-                            ProcessedEntries.Add(DedupeKey);
-                    end;
-
-                    if not ShouldSkip then begin
-                        if StatusFilter = 2 then
-                            ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", SheetType, Redeem)
-                        else
-                            ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", SheetType, Used);
-                    end;
-
                 until PosEntry.Next() = 0;
 
         until EntryType.Next() = 0;
+    end;
+
+    local procedure IsDateInFilter(DateToCheck: Date): Boolean
+    begin
+        if DateToCheck = 0D then
+            exit(false);
+
+        if (FilterDateStart <> 0D) and (FilterDateEnd <> 0D) then
+            if (DateToCheck < FilterDateStart) or (DateToCheck > FilterDateEnd) then
+                exit(false);
+
+        exit(true);
     end;
 
     local procedure ExpandVoucherRows(
@@ -240,7 +255,6 @@ report 70036 "Taka Voucher Report"
         IssueLogLine: Record "wpIssueLogLine";
         IssueLogLine2: Record "wpIssueLogLine";
         TransSalesEntry: Record "LSC Trans. Sales Entry";
-        RetailItem: Record "Item";
         IssueLogRec: Record "wpIssueLog";
         PosEntryForVoucher: Record "LSC POS Data Entry";
         PosEntryUsed: Record "LSC POS Data Entry";
@@ -283,7 +297,7 @@ report 70036 "Taka Voucher Report"
             PosEntryUsed.Reset();
             PosEntryUsed.SetRange("Entry Type", PosEntryForVoucher."Entry Type");
             PosEntryUsed.SetRange("Applied by Receipt No.", AppliedReceiptNo);
-            PosEntryUsed.SetFilter("Status", '3');
+            PosEntryUsed.SetRange(Applied, true);
             VoucherCount := PosEntryUsed.Count();
             if VoucherCount = 0 then
                 VoucherCount := 1;
