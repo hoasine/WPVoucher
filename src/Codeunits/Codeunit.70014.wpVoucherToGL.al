@@ -106,7 +106,7 @@ codeunit 70014 wpVoucherToGL
         GenJournalLine."Amount (LCY)" := Round(TotalVoucherAmounr, 1);
         GenJournalLine."Bal. Account Type" := GenJournalLine."Bal. Account Type"::"G/L Account";
         GenJournalLine."Bal. Account No." := tbReasonCode."Bal. Account No.";
-        GenJournalLine.Description := StrSubstNo('Activate Taka voucher %1', tbwpVoucherMaintenance."Reason Code");
+        GenJournalLine.Description := StrSubstNo('Activate Taka voucher %1 %2', tbwpVoucherMaintenance."Reason Code", tbwpVoucherMaintenance.Description);
         GenJournalLine."Reason Code" := tbwpVoucherMaintenance."Reason Code";
         GenJournalLine.Correction := true;
         GenJournalLine.Insert();
