@@ -327,7 +327,7 @@ codeunit 70013 "wpTakaVoucherValidation"
     var OK: Boolean)
     var
         PosDataEntryType: Record "LSC POS Data Entry Type";
-        DataEntryLocal: Record "LSC POS Data Entry";
+        PosDataEntry: Record "LSC POS Data Entry";
         ReceiptNo: Code[20];
         PosNo: Text[3];
     begin
@@ -337,13 +337,13 @@ codeunit 70013 "wpTakaVoucherValidation"
         if not PosDataEntryType.FindFirst() then
             exit;
 
-        if not DataEntryLocal.Get(Type, Code) then
+        if not PosDataEntry.Get(Type, Code) then
             exit;
 
-        if DataEntryLocal.Applied <> true then
+        if PosDataEntry.Applied <> true then
             exit;
 
-        ReceiptNo := DataEntryLocal."Applied by Receipt No.";
+        ReceiptNo := PosDataEntry."Applied by Receipt No.";
         PosNo := CopyStr(ReceiptNo, 8, 3);
 
         Message('Voucher: %1 already used\Receipt: %2\POS: %3',
