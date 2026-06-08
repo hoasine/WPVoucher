@@ -105,18 +105,15 @@ report 70037 "Taka Voucher Member Summary"
     local procedure BuildResultTable()
     var
         VoucherCampaign: Record wpVoucherMaintenance;
-        IssueLog: Record wpIssueLog;
-        IssueLogLine: Record wpIssueLogLine;
         PosEntry: Record "LSC POS Data Entry";
         StartDate: Date;
         EndDate: Date;
         RowNo: Integer;
-        SeenDenomList: Text[2048]; // tách denom, mệnh giá vd 100k, 200k
+        SeenDenomList: Text[2048];
         LineDenom: Decimal;
         DenomParts: List of [Text];
         DenomText: Text;
         DenomVal: Decimal;
-        FallbackDenom: Decimal;
     begin
         TempResult.DeleteAll();
         RowNo := 0;
@@ -131,40 +128,51 @@ report 70037 "Taka Voucher Member Summary"
             exit;
 
         repeat
-            // đầu tiên lấy mệnh giá khác nhau từ bảng issuelog -> issuelogline -> pos entry
+            // --- Step 1: Collect distinct denominations from POS Data Entry directly ---
+            // Works even when IssueLog is empty (bulk import / paper voucher case)
             SeenDenomList := '';
-            IssueLog.Reset();
-            IssueLog.SetRange("Voucher ID", VoucherCampaign.ID);
-            IssueLog.SetRange("Redeemp Date", StartDate, EndDate);
 
-            if IssueLog.FindSet() then
+            // Status=2 (Redeemed): date filter on "Date Redeemed" ext field
+            PosEntry.Reset();
+            if VoucherTypeFilter <> '' then
+                PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+            PosEntry.SetRange("Created by Receipt No.", VoucherCampaign.ID);
+            PosEntry.SetRange("Status", 2);
+            PosEntry.SetRange("Date Redeemed", StartDate, EndDate);
+            if PosEntry.FindSet() then
                 repeat
-                    IssueLogLine.Reset();
-                    IssueLogLine.SetRange("Entry No.", IssueLog."Entry No.");
-                    IssueLogLine.SetRange(Type, 1);
-                    if IssueLogLine.FindFirst() then begin
-                        PosEntry.Reset();
-                        if VoucherTypeFilter <> '' then
-                            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
-                        PosEntry.SetRange("Entry Code", IssueLogLine."Document No.");
-                        PosEntry.SetRange("Created by Receipt No.", VoucherCampaign.ID);
-                        if PosEntry.FindFirst() then begin
-                            LineDenom := PosEntry.Amount;
-                            if not DenomAlreadySeen(SeenDenomList, LineDenom) then begin
-                                if SeenDenomList = '' then
-                                    SeenDenomList := Format(LineDenom, 0, 9)
-                                else
-                                    SeenDenomList := SeenDenomList + '|' + Format(LineDenom, 0, 9);
-                            end;
-                        end;
+                    LineDenom := PosEntry.Amount;
+                    if not DenomAlreadySeen(SeenDenomList, LineDenom) then begin
+                        if SeenDenomList = '' then
+                            SeenDenomList := Format(LineDenom, 0, 9)
+                        else
+                            SeenDenomList := SeenDenomList + '|' + Format(LineDenom, 0, 9);
                     end;
-                until IssueLog.Next() = 0;
+                until PosEntry.Next() = 0;
 
-            if SeenDenomList = '' then begin
-                FallbackDenom := GetVoucherDenomination(VoucherCampaign.ID);
-                SeenDenomList := Format(FallbackDenom, 0, 9);
-            end;
-            //với mỗi mệnh giá, build 1 dòng khác nhau
+            // Status=3 (Used): date filter on "Date Applied" base field
+            PosEntry.Reset();
+            if VoucherTypeFilter <> '' then
+                PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+            PosEntry.SetRange("Created by Receipt No.", VoucherCampaign.ID);
+            PosEntry.SetRange("Status", 3);
+            PosEntry.SetRange("Date Applied", StartDate, EndDate);
+            if PosEntry.FindSet() then
+                repeat
+                    LineDenom := PosEntry.Amount;
+                    if not DenomAlreadySeen(SeenDenomList, LineDenom) then begin
+                        if SeenDenomList = '' then
+                            SeenDenomList := Format(LineDenom, 0, 9)
+                        else
+                            SeenDenomList := SeenDenomList + '|' + Format(LineDenom, 0, 9);
+                    end;
+                until PosEntry.Next() = 0;
+
+            // Fallback: no activity in date range -> show one row with face value, counts = 0
+            if SeenDenomList = '' then
+                SeenDenomList := Format(GetVoucherDenomination(VoucherCampaign.ID), 0, 9);
+
+            // --- Step 2: One row per denomination ---
             DenomParts := SeenDenomList.Split('|');
             foreach DenomText in DenomParts do begin
                 Evaluate(DenomVal, DenomText);
@@ -214,15 +222,14 @@ report 70037 "Taka Voucher Member Summary"
         RedeemCount := 0;
         UsedCount := 0;
 
+        // --- Member names: from IssueLog (only available for normal UI flow) ---
         IssueLog.Reset();
         IssueLog.SetRange("Voucher ID", CampaignID);
         IssueLog.SetRange("Redeemp Date", StartDate, EndDate);
 
         if IssueLog.FindSet() then
             repeat
-                //Check xem cái IssueLog entry có thuộc mệnh giá này không = nhìn line
-                //amount đầu tiên của pos data entry
-
+                // Check denomination by looking at first voucher line's POS amount
                 IssueLogHasThisDenom := false;
                 IssueLogLine.Reset();
                 IssueLogLine.SetRange("Entry No.", IssueLog."Entry No.");
@@ -254,31 +261,32 @@ report 70037 "Taka Voucher Member Summary"
                         end;
                     end else
                         HasNonMember := true;
-
-                    // Đếm voucher trong IssueLog cho redeeem/ussed
-                    IssueLogLine.Reset();
-                    IssueLogLine.SetRange("Entry No.", IssueLog."Entry No.");
-                    IssueLogLine.SetRange(Type, 1);
-                    if IssueLogLine.FindSet() then
-                        repeat
-                            PosEntry.Reset();
-                            if VoucherTypeFilter <> '' then
-                                PosEntry.SetRange("Entry Type", VoucherTypeFilter);
-                            PosEntry.SetRange("Entry Code", IssueLogLine."Document No.");
-                            PosEntry.SetRange("Created by Receipt No.", CampaignID);
-                            if PosEntry.FindFirst() then begin
-                                if PosEntry.Status = 2 then
-                                    RedeemCount += 1;
-                                if PosEntry.Status = 3 then
-                                    UsedCount += 1;
-                            end;
-                        until IssueLogLine.Next() = 0;
                 end;
-
             until IssueLog.Next() = 0;
 
         if HasNonMember then
             MemberCount += 1;
+
+        // --- Counts: always from POS Data Entry (works even without IssueLog) ---
+        // Status=2 Redeemed: filter by "Date Redeemed" + Denom
+        PosEntry.Reset();
+        if VoucherTypeFilter <> '' then
+            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+        PosEntry.SetRange("Created by Receipt No.", CampaignID);
+        PosEntry.SetRange("Status", 2);
+        PosEntry.SetRange("Date Redeemed", StartDate, EndDate);
+        PosEntry.SetRange(Amount, Denom);
+        RedeemCount := PosEntry.Count();
+
+        // Status=3 Used: filter by "Date Applied" + Denom
+        PosEntry.Reset();
+        if VoucherTypeFilter <> '' then
+            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+        PosEntry.SetRange("Created by Receipt No.", CampaignID);
+        PosEntry.SetRange("Status", 3);
+        PosEntry.SetRange("Date Applied", StartDate, EndDate);
+        PosEntry.SetRange(Amount, Denom);
+        UsedCount := PosEntry.Count();
 
         RowNo += 1;
         TempResult.RowNo := RowNo;
