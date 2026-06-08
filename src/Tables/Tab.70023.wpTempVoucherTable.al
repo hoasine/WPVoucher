@@ -1,4 +1,4 @@
-table 58053 wpTempVoucherResult
+table 70023 wpTempVoucherResult
 {
     TableType = Temporary;
     Caption = 'Temp Voucher Result';

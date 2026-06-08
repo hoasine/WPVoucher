@@ -5,7 +5,7 @@ using Microsoft.Foundation.NoSeries;
 using Microsoft.Sales.Setup;
 using Microsoft.Purchases.Document;
 
-table 58043 wpVoucherBudget
+table 70019 wpVoucherBudget
 {
     Caption = 'Voucher Budget';
     // DrillDownPageId = wpVoucherMaintenanceCard;

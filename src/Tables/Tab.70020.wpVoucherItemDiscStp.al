@@ -3,7 +3,7 @@ namespace worldpos.Voucher.Configuration;
 using Microsoft.Inventory.Item;
 using worldpos.Voucher.Configuration;
 
-table 58060 wpVoucheritemdiscstp
+table 70020 wpVoucheritemdiscstp
 {
     Caption = 'Voucher Item Discount Setup';
     DataClassification = ToBeClassified;

@@ -1,4 +1,4 @@
-table 58058 wpIssueLogLine
+table 70021 wpIssueLogLine
 {
     Caption = 'Issue Voucher Log Line';
     DataClassification = ToBeClassified;

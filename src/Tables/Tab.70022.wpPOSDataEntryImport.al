@@ -1,4 +1,4 @@
-table 58057 "POS Data Entry Import"
+table 70022 "POS Data Entry Import"
 {
     Caption = 'POS Data Entry Import';
     DataClassification = ToBeClassified;

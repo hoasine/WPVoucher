@@ -214,72 +214,74 @@ codeunit 70013 "wpTakaVoucherValidation"
         wpVoucherItem: Record wpVoucherItemDiscStp;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         Item: Record Item;
-        Exclude: Boolean;
+        HasInclude: Boolean;
     begin
-        if Item.Get(itemCode) then begin
-            // Item level
-            Exclude := true;
-            wpVoucherItem.Reset();
-            wpVoucherItem.SetRange("Voucher ID", VoucherID);
-            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
-            wpVoucherItem.SetRange("No.", itemCode);
-            if wpVoucherItem.FindLast() then begin
-                Exclude := wpVoucherItem.Exclude;
-                if Exclude then
-                    exit(false);
-            end;
+        if not Item.Get(itemCode) then
+            exit(false);
 
-            // Special Group
-            ItemSpecialGroupLink.Reset();
-            ItemSpecialGroupLink.SetRange("Item No.", itemCode);
-            if ItemSpecialGroupLink.FindSet() then
-                repeat
-                    wpVoucherItem.Reset();
-                    wpVoucherItem.SetRange("Voucher ID", VoucherID);
-                    wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Special Group");
-                    wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
-                    if wpVoucherItem.FindLast() then begin
-                        Exclude := wpVoucherItem.Exclude;
-                        if Exclude then
-                            exit(false);
-                    end;
-                until ItemSpecialGroupLink.Next() = 0;
+        HasInclude := false;
 
-            // Retail Product Group
-            wpVoucherItem.Reset();
-            wpVoucherItem.SetRange("Voucher ID", VoucherID);
-            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
-            wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
-            if wpVoucherItem.FindLast() then begin
-                Exclude := wpVoucherItem.Exclude;
-                if Exclude then
-                    exit(false);
-            end;
-
-            // Item Category
-            wpVoucherItem.Reset();
-            wpVoucherItem.SetRange("Voucher ID", VoucherID);
-            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
-            wpVoucherItem.SetRange("No.", Item."Item Category Code");
-            if wpVoucherItem.FindLast() then begin
-                Exclude := wpVoucherItem.Exclude;
-                if Exclude then
-                    exit(false);
-            end;
-
-            // Division
-            wpVoucherItem.Reset();
-            wpVoucherItem.SetRange("Voucher ID", VoucherID);
-            wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
-            wpVoucherItem.SetRange("No.", Item."LSC Division Code");
-            if wpVoucherItem.FindLast() then begin
-                Exclude := wpVoucherItem.Exclude;
-                if Exclude then
-                    exit(false);
-            end;
+        // 1. Check Item
+        wpVoucherItem.Reset();
+        wpVoucherItem.SetRange("Voucher ID", VoucherID);
+        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
+        wpVoucherItem.SetRange("No.", itemCode);
+        if wpVoucherItem.FindLast() then begin
+            if wpVoucherItem.Exclude then
+                exit(false);
+            HasInclude := true;
         end;
 
-        exit(true);
+        // 2. Check Special Group
+        ItemSpecialGroupLink.Reset();
+        ItemSpecialGroupLink.SetRange("Item No.", itemCode);
+        if ItemSpecialGroupLink.FindSet() then
+            repeat
+                wpVoucherItem.Reset();
+                wpVoucherItem.SetRange("Voucher ID", VoucherID);
+                wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Special Group");
+                wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
+                if wpVoucherItem.FindLast() then begin
+                    if wpVoucherItem.Exclude then
+                        exit(false);
+                    HasInclude := true;
+                end;
+            until ItemSpecialGroupLink.Next() = 0;
+
+        // 3. Check Retail Product Group
+        wpVoucherItem.Reset();
+        wpVoucherItem.SetRange("Voucher ID", VoucherID);
+        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
+        wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
+        if wpVoucherItem.FindLast() then begin
+            if wpVoucherItem.Exclude then
+                exit(false);
+            HasInclude := true;
+        end;
+
+        // 4. Check Item Category
+        wpVoucherItem.Reset();
+        wpVoucherItem.SetRange("Voucher ID", VoucherID);
+        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
+        wpVoucherItem.SetRange("No.", Item."Item Category Code");
+        if wpVoucherItem.FindLast() then begin
+            if wpVoucherItem.Exclude then
+                exit(false);
+            HasInclude := true;
+        end;
+
+        // 5. Check Division
+        wpVoucherItem.Reset();
+        wpVoucherItem.SetRange("Voucher ID", VoucherID);
+        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
+        wpVoucherItem.SetRange("No.", Item."LSC Division Code");
+        if wpVoucherItem.FindLast() then begin
+            if wpVoucherItem.Exclude then
+                exit(false);
+            HasInclude := true;
+        end;
+
+        exit(HasInclude);
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
@@ -317,42 +319,42 @@ codeunit 70013 "wpTakaVoucherValidation"
         DataEntry.Status := DataEntry.Status::Used;
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforeGetDataEntry', '', false, false)]
-    local procedure OnBeforeGetDataEntry(
-    Type: Code[10];
-    "Code": Code[20];
-    var DataEntry: Record "LSC POS Data Entry";
-    var ErrorText: Text;
-    var IsHandled: Boolean;
-    var OK: Boolean)
-    var
-        PosDataEntryType: Record "LSC POS Data Entry Type";
-        DataEntryLocal: Record "LSC POS Data Entry";
-        ReceiptNo: Code[20];
-        PosNo: Text[3];
-    begin
-        Clear(PosDataEntryType);
-        PosDataEntryType.SetRange(Code, Type);
-        PosDataEntryType.SetRange("Enable/ Activate Taka Voucher", true);
-        if not PosDataEntryType.FindFirst() then
-            exit;
+    //     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforeGetDataEntry', '', false, false)]
+    //     local procedure OnBeforeGetDataEntry(
+    //     Type: Code[10];
+    //     "Code": Code[20];
+    //     var DataEntry: Record "LSC POS Data Entry";
+    //     var ErrorText: Text;
+    //     var IsHandled: Boolean;
+    //     var OK: Boolean)
+    //     var
+    //         PosDataEntryType: Record "LSC POS Data Entry Type";
+    //         DataEntryLocal: Record "LSC POS Data Entry";
+    //         ReceiptNo: Code[20];
+    //         PosNo: Text[3];
+    //     begin
+    //         Clear(PosDataEntryType);
+    //         PosDataEntryType.SetRange(Code, Type);
+    //         PosDataEntryType.SetRange("Enable/ Activate Taka Voucher", true);
+    //         if not PosDataEntryType.FindFirst() then
+    //             exit;
 
-        if not DataEntryLocal.Get(Type, Code) then
-            exit;
+    //         if not DataEntryLocal.Get(Type, Code) then
+    //             exit;
 
-        if DataEntryLocal.Applied <> true then
-            exit;
+    //         if DataEntryLocal.Applied <> true then
+    //             exit;
 
-        ReceiptNo := DataEntryLocal."Applied by Receipt No.";
-        PosNo := CopyStr(ReceiptNo, 8, 3);
+    //         ReceiptNo := DataEntryLocal."Applied by Receipt No.";
+    //         PosNo := CopyStr(ReceiptNo, 8, 3);
 
-        Message('Voucher: %1 already used\Receipt: %2\POS: %3',
-            Code,
-            ReceiptNo,
-            PosNo);
+    //         Message('Voucher: %1 already used\Receipt: %2\POS: %3',
+    //             Code,
+    //             ReceiptNo,
+    //             PosNo);
 
-        IsHandled := true;
-        OK := false;
-    end;
+    //         IsHandled := true;
+    //         OK := false;
+    //     end;
 }
 
