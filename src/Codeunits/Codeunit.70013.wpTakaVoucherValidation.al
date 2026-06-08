@@ -126,6 +126,7 @@ codeunit 70013 "wpTakaVoucherValidation"
             ErrorTxt := 'Tất cả Item không đủ điều kiện đổi voucher';
             IsHandled := true;
             ReturnValue := false;
+            exit;
         end;
 
         //Lấy tổng giá trị voucher đã applied
@@ -214,14 +215,22 @@ codeunit 70013 "wpTakaVoucherValidation"
         wpVoucherItem: Record wpVoucherItemDiscStp;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         Item: Record Item;
-        HasInclude: Boolean;
+        HasIncludeSetup: Boolean;
+        MatchInclude: Boolean;
     begin
         if not Item.Get(itemCode) then
             exit(false);
 
-        HasInclude := false;
+        HasIncludeSetup := false;
+        MatchInclude := false;
 
-        // 1. Check Item
+        // Check có include setup không
+        wpVoucherItem.Reset();
+        wpVoucherItem.SetRange("Voucher ID", VoucherID);
+        wpVoucherItem.SetRange(Exclude, false);
+        HasIncludeSetup := wpVoucherItem.FindFirst();
+
+        // Check Item
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
@@ -229,10 +238,11 @@ codeunit 70013 "wpTakaVoucherValidation"
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
                 exit(false);
-            HasInclude := true;
+
+            MatchInclude := true;
         end;
 
-        // 2. Check Special Group
+        // Check Special Group
         ItemSpecialGroupLink.Reset();
         ItemSpecialGroupLink.SetRange("Item No.", itemCode);
         if ItemSpecialGroupLink.FindSet() then
@@ -244,11 +254,12 @@ codeunit 70013 "wpTakaVoucherValidation"
                 if wpVoucherItem.FindLast() then begin
                     if wpVoucherItem.Exclude then
                         exit(false);
-                    HasInclude := true;
+
+                    MatchInclude := true;
                 end;
             until ItemSpecialGroupLink.Next() = 0;
 
-        // 3. Check Retail Product Group
+        // Check Retail Product Group
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
@@ -256,10 +267,11 @@ codeunit 70013 "wpTakaVoucherValidation"
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
                 exit(false);
-            HasInclude := true;
+
+            MatchInclude := true;
         end;
 
-        // 4. Check Item Category
+        // Check Item Category
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
@@ -267,10 +279,11 @@ codeunit 70013 "wpTakaVoucherValidation"
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
                 exit(false);
-            HasInclude := true;
+
+            MatchInclude := true;
         end;
 
-        // 5. Check Division
+        // Check Division
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
@@ -278,10 +291,14 @@ codeunit 70013 "wpTakaVoucherValidation"
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
                 exit(false);
-            HasInclude := true;
+
+            MatchInclude := true;
         end;
 
-        exit(HasInclude);
+        if HasIncludeSetup then
+            exit(MatchInclude);
+
+        exit(true);
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
