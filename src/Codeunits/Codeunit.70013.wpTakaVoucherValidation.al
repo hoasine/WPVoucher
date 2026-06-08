@@ -319,6 +319,7 @@ codeunit 70013 "wpTakaVoucherValidation"
         DataEntry.Status := DataEntry.Status::Used;
     end;
 
+<<<<<<< HEAD
     //     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforeGetDataEntry', '', false, false)]
     //     local procedure OnBeforeGetDataEntry(
     //     Type: Code[10];
@@ -347,6 +348,36 @@ codeunit 70013 "wpTakaVoucherValidation"
 
     //         ReceiptNo := DataEntryLocal."Applied by Receipt No.";
     //         PosNo := CopyStr(ReceiptNo, 8, 3);
+=======
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Trans. Server Utility", 'OnBeforeGetDataEntry', '', false, false)]
+    local procedure OnBeforeGetDataEntry(
+    Type: Code[10];
+    "Code": Code[20];
+    var DataEntry: Record "LSC POS Data Entry";
+    var ErrorText: Text;
+    var IsHandled: Boolean;
+    var OK: Boolean)
+    var
+        PosDataEntryType: Record "LSC POS Data Entry Type";
+        PosDataEntry: Record "LSC POS Data Entry";
+        ReceiptNo: Code[20];
+        PosNo: Text[3];
+    begin
+        Clear(PosDataEntryType);
+        PosDataEntryType.SetRange(Code, Type);
+        PosDataEntryType.SetRange("Enable/ Activate Taka Voucher", true);
+        if not PosDataEntryType.FindFirst() then
+            exit;
+
+        if not PosDataEntry.Get(Type, Code) then
+            exit;
+
+        if PosDataEntry.Applied <> true then
+            exit;
+
+        ReceiptNo := PosDataEntry."Applied by Receipt No.";
+        PosNo := CopyStr(ReceiptNo, 8, 3);
+>>>>>>> f8623bb8b48092673e2a5b91129b41e4fdd1e5eb
 
     //         Message('Voucher: %1 already used\Receipt: %2\POS: %3',
     //             Code,
