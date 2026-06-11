@@ -154,6 +154,13 @@ codeunit 70013 "wpTakaVoucherValidation"
         end else if calAmountCurrent > 0 then begin //Chỉ lấy amount đủ cho item đủ điều kiện
             Line.Amount := VoucherEntry."Remaining Amount Now" - calAmountCurrent;
         end;
+
+        if Line.Amount <= 0 then begin
+            ErrorTxt := 'Voucher amount is not valid for eligible items.';
+            IsHandled := true;
+            ReturnValue := false;
+            exit;
+        end;
     end;
 
     // [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Transaction Events", 'OnAfterVoidLine', '', false, false)]
@@ -215,34 +222,47 @@ codeunit 70013 "wpTakaVoucherValidation"
         wpVoucherItem: Record wpVoucherItemDiscStp;
         ItemSpecialGroupLink: Record "LSC Item/Special Group Link";
         Item: Record Item;
-        HasIncludeSetup: Boolean;
+        HasAllSetup: Boolean;
+        AllExclude: Boolean;
         MatchInclude: Boolean;
+        MatchExclude: Boolean;
     begin
         if not Item.Get(itemCode) then
             exit(false);
 
-        HasIncludeSetup := false;
+        HasAllSetup := false;
+        AllExclude := false;
         MatchInclude := false;
+        MatchExclude := false;
 
-        // Check có include setup không
+        // ============================================================
+        // 1. Check setup Type = All
+        // ============================================================
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
-        wpVoucherItem.SetRange(Exclude, false);
-        HasIncludeSetup := wpVoucherItem.FindFirst();
+        wpVoucherItem.SetRange(Type, wpVoucherItem.Type::All);
+        if wpVoucherItem.FindLast() then begin
+            HasAllSetup := true;
+            AllExclude := wpVoucherItem.Exclude;
+        end;
 
-        // Check Item
+        // ============================================================
+        // 2. Check Item
+        // ============================================================
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Item);
         wpVoucherItem.SetRange("No.", itemCode);
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
-                exit(false);
-
-            MatchInclude := true;
+                MatchExclude := true
+            else
+                MatchInclude := true;
         end;
 
-        // Check Special Group
+        // ============================================================
+        // 3. Check Special Group
+        // ============================================================
         ItemSpecialGroupLink.Reset();
         ItemSpecialGroupLink.SetRange("Item No.", itemCode);
         if ItemSpecialGroupLink.FindSet() then
@@ -251,54 +271,92 @@ codeunit 70013 "wpTakaVoucherValidation"
                 wpVoucherItem.SetRange("Voucher ID", VoucherID);
                 wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Special Group");
                 wpVoucherItem.SetRange("No.", ItemSpecialGroupLink."Special Group Code");
+
                 if wpVoucherItem.FindLast() then begin
                     if wpVoucherItem.Exclude then
-                        exit(false);
-
-                    MatchInclude := true;
+                        MatchExclude := true
+                    else
+                        MatchInclude := true;
                 end;
             until ItemSpecialGroupLink.Next() = 0;
 
-        // Check Retail Product Group
+        // ============================================================
+        // 4. Check Retail Product Group
+        // ============================================================
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Retail Product Group");
         wpVoucherItem.SetRange("No.", Item."LSC Retail Product Code");
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
-                exit(false);
-
-            MatchInclude := true;
+                MatchExclude := true
+            else
+                MatchInclude := true;
         end;
 
-        // Check Item Category
+        // ============================================================
+        // 5. Check Item Category
+        // ============================================================
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::"Item Category");
         wpVoucherItem.SetRange("No.", Item."Item Category Code");
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
-                exit(false);
-
-            MatchInclude := true;
+                MatchExclude := true
+            else
+                MatchInclude := true;
         end;
 
-        // Check Division
+        // ============================================================
+        // 6. Check Division
+        // ============================================================
         wpVoucherItem.Reset();
         wpVoucherItem.SetRange("Voucher ID", VoucherID);
         wpVoucherItem.SetRange(Type, wpVoucherItem.Type::Division);
         wpVoucherItem.SetRange("No.", Item."LSC Division Code");
         if wpVoucherItem.FindLast() then begin
             if wpVoucherItem.Exclude then
-                exit(false);
-
-            MatchInclude := true;
+                MatchExclude := true
+            else
+                MatchInclude := true;
         end;
 
-        if HasIncludeSetup then
-            exit(MatchInclude);
+        // ============================================================
+        // 7. Final decision
+        // ============================================================
 
-        exit(true);
+        // Case A:
+        // All + Exclude = false
+        // => mặc định cho tất cả, nhưng nếu match exclude cấp dưới thì chặn.
+        if HasAllSetup and (not AllExclude) then begin
+            if MatchExclude then
+                exit(false);
+
+            exit(true);
+        end;
+
+        // Case B:
+        // All + Exclude = true
+        // => mặc định chặn tất cả, nhưng nếu match include cấp dưới thì cho phép.
+        if HasAllSetup and AllExclude then begin
+            if MatchInclude then
+                exit(true);
+
+            exit(false);
+        end;
+
+        // Case C:
+        // Không có All
+        // => chạy theo setup cấp dưới.
+        // Exclude ưu tiên hơn Include.
+        if MatchExclude then
+            exit(false);
+
+        if MatchInclude then
+            exit(true);
+
+        exit(false);
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"LSC POS Post Utility", 'OnBeforeInsertPaymentEntryV2', '', false, false)]
