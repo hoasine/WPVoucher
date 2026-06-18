@@ -264,8 +264,13 @@ report 70037 "Taka Voucher Member Summary"
                 end;
             until IssueLog.Next() = 0;
 
-        if HasNonMember then
+        if HasNonMember then begin
             MemberCount += 1;
+            if MemberNamesList = '' then
+                MemberNamesList := 'No Member'
+            else
+                MemberNamesList := MemberNamesList + ';No Member';
+        end;
 
         // --- Counts: always from POS Data Entry (works even without IssueLog) ---
         // Status=2 Redeemed: filter by "Date Redeemed" + Denom

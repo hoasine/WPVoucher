@@ -15,6 +15,7 @@ report 70035 "Taka Voucher Campaign Summary"
         {
             DataItemTableView = sorting(Number);
 
+            column(STT; STT) { }
             column(ReportDate; ReportDate) { }
             column(DatePrint; DatePrint) { }
             column(DateTarget; DateTarget) { }
@@ -45,6 +46,7 @@ report 70035 "Taka Voucher Campaign Summary"
                 else
                     TempResult.Next();
 
+                STT := TempResult.SumTotal; // SumTotal stores the real DateSlot (day number)
                 ReportDate := TempResult.ReportDate;
                 DatePrint := Format(Today(), 0, '<Day,2>/<Month,2>/<Year4>');
                 CampaignID := TempResult.CampaignID;
@@ -85,7 +87,6 @@ report 70035 "Taka Voucher Campaign Summary"
                     {
                         Caption = 'Date Actived (Range)';
                         ApplicationArea = All;
-
                         trigger OnValidate()
                         begin
                             ApplicationManagement.MakeDateFilter(DateActivedFilter);
@@ -106,115 +107,6 @@ report 70035 "Taka Voucher Campaign Summary"
         }
     }
 
-    local procedure BuildResultTable()
-    var
-        VoucherCampaign: Record wpVoucherMaintenance;
-        PosEntry: Record "LSC POS Data Entry";
-        StartDate: Date;
-        EndDate: Date;
-        CurrentDate: Date;
-        RowNo: Integer;
-        Denom: Decimal;
-        QtyCount: Integer;
-    begin
-        TempResult.DeleteAll();
-        RowNo := 0;
-
-        ParseDateFilter(StartDate, EndDate);
-
-        DateTarget := Format(StartDate, 0, '<Day,2>/<Month,2>/<Year4>') + '-' + Format(EndDate, 0, '<Day,2>/<Month,2>/<Year4>');
-
-        VoucherCampaign.Reset();
-        VoucherCampaign.SetRange("Starting Date", 0D, Today);
-        VoucherCampaign.SetFilter("Ending Date", '>=%1|%2', Today, 0D);
-        if DocumentNoFilter <> '' then
-            VoucherCampaign.SetRange(ID, DocumentNoFilter);
-
-        if VoucherCampaign.FindSet() then
-            repeat
-                CurrentDate := StartDate;
-                while CurrentDate <= EndDate do begin
-                    Denom := 0;
-
-                    PosEntry.Reset();
-                    ApplyUsedVoucherFilter(PosEntry, VoucherCampaign.ID, CurrentDate);
-                    QtyCount := PosEntry.Count();
-
-                    if QtyCount > 0 then
-                        if PosEntry.FindFirst() then
-                            Denom := PosEntry.Amount;
-
-                    RowNo += 1;
-                    TempResult.Init();
-                    TempResult.RowNo := RowNo;
-                    TempResult.ReportDate := CurrentDate;
-                    TempResult.CampaignID := VoucherCampaign.ID;
-                    TempResult.CampaignName := VoucherCampaign.Description;
-                    TempResult.Denomination := Denom;
-                    TempResult.Qty := QtyCount;
-                    TempResult.TotalAmount := Denom * QtyCount;
-                    TempResult.ActualUsedHCM := GetActualUsed(VoucherCampaign.ID, CurrentDate, 'HCM');
-                    TempResult.ActualUsedHN := GetActualUsed(VoucherCampaign.ID, CurrentDate, 'HN');
-                    TempResult.Insert();
-
-                    CurrentDate := CalcDate('<+1D>', CurrentDate);
-                end;
-            until VoucherCampaign.Next() = 0;
-    end;
-
-    local procedure GetActualUsed(CampaignID: Code[20]; ForDate: Date; StoreCode: Code[20]): Decimal
-    var
-        PosEntry: Record "LSC POS Data Entry";
-        VoucherEntry: Record "LSC Voucher Entries";
-        TotalActual: Decimal;
-        WriteOff: Decimal;
-    begin
-        TotalActual := 0;
-
-        PosEntry.Reset();
-        ApplyUsedVoucherFilter(PosEntry, CampaignID, ForDate);
-        PosEntry.SetRange("Created in Store No.", StoreCode);
-
-        if not PosEntry.FindSet() then
-            exit(0);
-
-        repeat
-            WriteOff := 0;
-
-            VoucherEntry.Reset();
-            VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
-            VoucherEntry.SetFilter("Entry Type", '=Redemption');
-            if VoucherEntry.FindFirst() then
-                WriteOff := VoucherEntry."Write Off Amount";
-
-            TotalActual += PosEntry.Amount - WriteOff;
-        until PosEntry.Next() = 0;
-
-        exit(TotalActual);
-    end;
-
-    local procedure ApplyUsedVoucherFilter(var PosEntry: Record "LSC POS Data Entry"; CampaignID: Code[20]; ForDate: Date)
-    begin
-        if VoucherTypeFilter <> '' then
-            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
-
-        PosEntry.SetRange("Created by Receipt No.", CampaignID);
-        PosEntry.SetRange("Date Applied", ForDate);
-        PosEntry.SetRange(Applied, true);
-        PosEntry.SetFilter("Applied by Receipt No.", '<>%1', '');
-    end;
-
-    local procedure ParseDateFilter(var StartDate: Date; var EndDate: Date)
-    begin
-        if StrPos(DateActivedFilter, '..') > 0 then begin
-            Evaluate(StartDate, CopyStr(DateActivedFilter, 1, StrPos(DateActivedFilter, '..') - 1));
-            Evaluate(EndDate, CopyStr(DateActivedFilter, StrPos(DateActivedFilter, '..') + 2));
-        end else begin
-            Evaluate(StartDate, DateActivedFilter);
-            EndDate := StartDate;
-        end;
-    end;
-
     var
         DocumentNoFilter: Code[20];
         DateActivedFilter: Text[100];
@@ -234,4 +126,209 @@ report 70035 "Taka Voucher Campaign Summary"
         ActualUsedHCM: Decimal;
         ActualUsedHN: Decimal;
         ActualUsedBoth: Decimal;
+        STT: Integer;
+
+    local procedure BuildResultTable()
+    var
+        VoucherCampaign: Record wpVoucherMaintenance;
+        PosEntry: Record "LSC POS Data Entry";
+        StartDate: Date;
+        EndDate: Date;
+        CurrentDate: Date;
+        RowNo: Integer;
+        DateSlot: Integer;       // STT = day slot number (same for all campaigns on same day)
+        MaxDenomSlots: Integer;  // how many denom slots needed for this date
+        SlotIdx: Integer;
+        SeenDenomList: Text[2048];
+        CampaignDenomMap: array[500] of Text[2048]; // denom list per campaign slot
+        CampaignIDArr: array[500] of Code[20];
+        CampaignNameArr: array[500] of Text[100];
+        CampaignCount: Integer;
+        LineDenom: Decimal;
+        DenomParts: List of [Text];
+        DenomText: Text;
+        DenomVal: Decimal;
+        QtyCount: Integer;
+        i: Integer;
+        CampDenomParts: List of [Text];
+        CampDenomText: Text;
+        CampDenomVal: Decimal;
+    begin
+        TempResult.DeleteAll();
+        RowNo := 0;
+        DateSlot := 0;
+
+        ParseDateFilter(StartDate, EndDate);
+        DateTarget := Format(StartDate, 0, '<Day,2>/<Month,2>/<Year4>') + '-' +
+                      Format(EndDate, 0, '<Day,2>/<Month,2>/<Year4>');
+
+        CurrentDate := StartDate;
+        while CurrentDate <= EndDate do begin
+            DateSlot += 1;
+            // DateSlot will be adjusted after we know MaxDenomSlots for this date
+            // We use a base slot here and advance it by MaxDenomSlots at end of date
+
+            // --- Pass 1: collect campaigns and their denom lists for this date ---
+            CampaignCount := 0;
+            MaxDenomSlots := 1; // minimum 1 slot per date
+
+            VoucherCampaign.Reset();
+            VoucherCampaign.SetRange("Starting Date", 0D, Today);
+            VoucherCampaign.SetFilter("Ending Date", '>=%1|%2', Today, 0D);
+            if DocumentNoFilter <> '' then
+                VoucherCampaign.SetRange(ID, DocumentNoFilter);
+
+            if VoucherCampaign.FindSet() then
+                repeat
+                    CampaignCount += 1;
+                    CampaignIDArr[CampaignCount] := VoucherCampaign.ID;
+                    CampaignNameArr[CampaignCount] := VoucherCampaign.Description;
+
+                    // Collect denom list for this campaign+date
+                    SeenDenomList := '';
+                    PosEntry.Reset();
+                    ApplyUsedVoucherFilter(PosEntry, VoucherCampaign.ID, CurrentDate);
+                    if PosEntry.FindSet() then
+                        repeat
+                            LineDenom := PosEntry.Amount;
+                            if not DenomAlreadySeen(SeenDenomList, LineDenom) then begin
+                                if SeenDenomList = '' then
+                                    SeenDenomList := Format(LineDenom, 0, 9)
+                                else
+                                    SeenDenomList := SeenDenomList + '|' + Format(LineDenom, 0, 9);
+                            end;
+                        until PosEntry.Next() = 0;
+
+                    CampaignDenomMap[CampaignCount] := SeenDenomList;
+
+                    // Track max denom slots needed across all campaigns for this date
+                    if SeenDenomList <> '' then begin
+                        DenomParts := SeenDenomList.Split('|');
+                        if DenomParts.Count > MaxDenomSlots then
+                            MaxDenomSlots := DenomParts.Count;
+                    end;
+                until VoucherCampaign.Next() = 0;
+
+            // --- Pass 2: write rows slot by slot ---
+            // Each SlotIdx gets its own STT = DateSlot + SlotIdx - 1
+            // So slot 1 of day 3 = STT 3, slot 2 of day 3 = STT 4, etc.
+            for SlotIdx := 1 to MaxDenomSlots do begin
+                for i := 1 to CampaignCount do begin
+                    DenomVal := 0;
+                    QtyCount := 0;
+
+                    if CampaignDenomMap[i] <> '' then begin
+                        CampDenomParts := CampaignDenomMap[i].Split('|');
+                        if SlotIdx <= CampDenomParts.Count then begin
+                            CampDenomParts.Get(SlotIdx, CampDenomText);
+                            Evaluate(CampDenomVal, CampDenomText);
+                            DenomVal := CampDenomVal;
+
+                            PosEntry.Reset();
+                            ApplyUsedVoucherFilter(PosEntry, CampaignIDArr[i], CurrentDate);
+                            PosEntry.SetRange(Amount, DenomVal);
+                            QtyCount := PosEntry.Count();
+                        end;
+                        // If SlotIdx > this campaign's denom count -> DenomVal=0, QtyCount=0 (empty slot)
+                    end;
+
+                    RowNo += 1;
+                    TempResult.Init();
+                    TempResult.RowNo := RowNo;  // unique PK
+                    TempResult.SumTotal := DateSlot + SlotIdx - 1; // STT: slot1=DateSlot, slot2=DateSlot+1...
+                    TempResult.ReportDate := CurrentDate;
+                    TempResult.CampaignID := CampaignIDArr[i];
+                    TempResult.CampaignName := CampaignNameArr[i];
+                    TempResult.Denomination := DenomVal;
+                    TempResult.Qty := QtyCount;
+                    TempResult.TotalAmount := DenomVal * QtyCount;
+                    if DenomVal > 0 then begin
+                        TempResult.ActualUsedHCM :=
+                            GetActualUsed(CampaignIDArr[i], CurrentDate, 'HCM', DenomVal);
+                        TempResult.ActualUsedHN :=
+                            GetActualUsed(CampaignIDArr[i], CurrentDate, 'HN', DenomVal);
+                    end else begin
+                        TempResult.ActualUsedHCM := 0;
+                        TempResult.ActualUsedHN := 0;
+                    end;
+                    TempResult.Insert();
+                end;
+            end;
+
+            // Advance DateSlot by extra slots used (MaxDenomSlots-1 already counted above)
+            DateSlot += MaxDenomSlots - 1;
+
+            CurrentDate := CalcDate('<+1D>', CurrentDate);
+        end;
+    end;
+
+    /// <summary>
+    /// Get actual used amount for a store + date + denomination.
+    /// Added Denom parameter so HCM/HN amounts are correctly scoped per denomination.
+    /// </summary>
+    local procedure GetActualUsed(
+        CampaignID: Code[20];
+        ForDate: Date;
+        StoreCode: Code[20];
+        Denom: Decimal
+    ): Decimal
+    var
+        PosEntry: Record "LSC POS Data Entry";
+        VoucherEntry: Record "LSC Voucher Entries";
+        TotalActual: Decimal;
+        WriteOff: Decimal;
+    begin
+        TotalActual := 0;
+
+        PosEntry.Reset();
+        ApplyUsedVoucherFilter(PosEntry, CampaignID, ForDate);
+        PosEntry.SetRange("Created in Store No.", StoreCode);
+        PosEntry.SetRange(Amount, Denom); // scope to this denomination only
+
+        if not PosEntry.FindSet() then
+            exit(0);
+
+        repeat
+            WriteOff := 0;
+            VoucherEntry.Reset();
+            VoucherEntry.SetRange("Voucher No.", PosEntry."Entry Code");
+            VoucherEntry.SetFilter("Entry Type", '=Redemption');
+            if VoucherEntry.FindFirst() then
+                WriteOff := VoucherEntry."Write Off Amount";
+            TotalActual += PosEntry.Amount - WriteOff;
+        until PosEntry.Next() = 0;
+
+        exit(TotalActual);
+    end;
+
+    local procedure ApplyUsedVoucherFilter(
+        var PosEntry: Record "LSC POS Data Entry";
+        CampaignID: Code[20];
+        ForDate: Date)
+    begin
+        if VoucherTypeFilter <> '' then
+            PosEntry.SetRange("Entry Type", VoucherTypeFilter);
+        PosEntry.SetRange("Created by Receipt No.", CampaignID);
+        PosEntry.SetRange("Date Applied", ForDate);
+        PosEntry.SetRange(Applied, true);
+        PosEntry.SetFilter("Applied by Receipt No.", '<>%1', '');
+    end;
+
+    local procedure DenomAlreadySeen(SeenList: Text[2048]; Denom: Decimal): Boolean
+    begin
+        if SeenList = '' then
+            exit(false);
+        exit(StrPos('|' + SeenList + '|', '|' + Format(Denom, 0, 9) + '|') > 0);
+    end;
+
+    local procedure ParseDateFilter(var StartDate: Date; var EndDate: Date)
+    begin
+        if StrPos(DateActivedFilter, '..') > 0 then begin
+            Evaluate(StartDate, CopyStr(DateActivedFilter, 1, StrPos(DateActivedFilter, '..') - 1));
+            Evaluate(EndDate, CopyStr(DateActivedFilter, StrPos(DateActivedFilter, '..') + 2));
+        end else begin
+            Evaluate(StartDate, DateActivedFilter);
+            EndDate := StartDate;
+        end;
+    end;
 }
