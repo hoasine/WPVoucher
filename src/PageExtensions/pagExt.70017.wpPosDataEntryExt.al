@@ -8,12 +8,18 @@ pageextension 70017 wpPosDataEntryExt extends "LSC POS Data Entries"
             {
                 ApplicationArea = All;
             }
-            // field(Status; Rec.Status)
-            // {
-            //     Caption = 'Status';
-            //     ApplicationArea = All;
-            //     Editable = false;
-            // }
+            field("Is Imported"; Rec."Is Imported")
+            {
+                Caption = 'Is Imported';
+                ApplicationArea = All;
+                Editable = false;
+            }
+            field("Date Redeemed"; Rec."Date Redeemed")
+            {
+                Caption = 'Date Redeemed';
+                ApplicationArea = All;
+                Editable = false;
+            }
             field(DisplayStatus; GetDisplayStatus())
             {
                 Caption = 'Status';

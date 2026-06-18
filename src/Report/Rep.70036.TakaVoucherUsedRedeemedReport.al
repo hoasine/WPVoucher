@@ -140,7 +140,6 @@ report 70036 "Taka Voucher Report"
         PosEntry: Record "LSC POS Data Entry";
         IssueLogLine: Record "wpIssueLogLine";
         ProcessedEntries: List of [Text];
-        DateToCheck: Date;
         DedupeKey: Text;
         EntryNo: Integer;
     begin
@@ -172,15 +171,14 @@ report 70036 "Taka Voucher Report"
                             if DocumentNoFilter <> '' then
                                 PosEntry.SetFilter("Document No.", DocumentNoFilter);
 
-                            if PosEntry.FindFirst() then begin
-                                DateToCheck := PosEntry."Date Redeemed";
+                            if DateFilterInput <> '' then
+                                PosEntry.SetFilter("Date Redeemed", DateFilterInput)
+                            else
+                                PosEntry.SetFilter("Date Redeemed", '<>%1', 0D);
 
-                                if DateToCheck <> 0D then begin
-                                    if IsDateInFilter(DateToCheck) then begin
-                                        ProcessedEntries.Add(DedupeKey);
-                                        ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", Redeem.SheetType::Redeem, Redeem);
-                                    end;
-                                end;
+                            if PosEntry.FindFirst() then begin
+                                ProcessedEntries.Add(DedupeKey);
+                                ExpandVoucherRows(PosEntry."Entry Code", PosEntry."Date Redeemed", PosEntry."Expiring Date", Redeem.SheetType::Redeem, Redeem);
                             end;
                         end;
                     end;
@@ -194,7 +192,6 @@ report 70036 "Taka Voucher Report"
         EntryType: Record "LSC POS Data Entry Type";
         PosEntry: Record "LSC POS Data Entry";
         ProcessedEntries: List of [Text];
-        DateToCheck: Date;
         DedupeKey: Text;
     begin
         EntryType.Reset();
@@ -215,35 +212,26 @@ report 70036 "Taka Voucher Report"
             if DocumentNoFilter <> '' then
                 PosEntry.SetFilter("Document No.", DocumentNoFilter);
 
+            if DateFilterInput <> '' then
+                PosEntry.SetFilter("Date Applied", DateFilterInput)
+            else
+                PosEntry.SetFilter("Date Applied", '<>%1', 0D);
+
             if PosEntry.FindSet() then
                 repeat
                     if PosEntry."Applied by Receipt No." <> '' then begin
-                        DateToCheck := PosEntry."Date Applied";
                         DedupeKey := PosEntry."Applied by Receipt No.";
 
-                        if DateToCheck <> 0D then
-                            if IsDateInFilter(DateToCheck) then
-                                if not ProcessedEntries.Contains(DedupeKey) then begin
-                                    ProcessedEntries.Add(DedupeKey);
-                                    ExpandVoucherRows(PosEntry."Entry Code", DateToCheck, PosEntry."Expiring Date", Used.SheetType::Used, Used);
-                                end;
+                        if not ProcessedEntries.Contains(DedupeKey) then begin
+                            ProcessedEntries.Add(DedupeKey);
+                            ExpandVoucherRows(PosEntry."Entry Code", PosEntry."Date Applied", PosEntry."Expiring Date", Used.SheetType::Used, Used);
+                        end;
                     end;
                 until PosEntry.Next() = 0;
 
         until EntryType.Next() = 0;
     end;
 
-    local procedure IsDateInFilter(DateToCheck: Date): Boolean
-    begin
-        if DateToCheck = 0D then
-            exit(false);
-
-        if (FilterDateStart <> 0D) and (FilterDateEnd <> 0D) then
-            if (DateToCheck < FilterDateStart) or (DateToCheck > FilterDateEnd) then
-                exit(false);
-
-        exit(true);
-    end;
 
     local procedure ExpandVoucherRows(
         EntryCode: Code[20];
@@ -259,8 +247,6 @@ report 70036 "Taka Voucher Report"
         PosEntryForVoucher: Record "LSC POS Data Entry";
         PosEntryUsed: Record "LSC POS Data Entry";
         TempGroupBuffer: Record wpTempVoucherResult temporary;
-        ExcludedDivisions: List of [Code[20]];
-        ExcludedItems: List of [Code[20]];
         VoucherID: Code[20];
         VoucherCount: Integer;
         TotalBillValue: Decimal;
@@ -268,7 +254,7 @@ report 70036 "Taka Voucher Report"
         ReceiptNoList: Text[500];
         POSList: Text[500];
         ReceiptNoEntry: Text[20];
-        POSEntry: Text[20];
+        POSTerminalEntry: Text[20];
         SpecialGrpCode: Code[50];
         AppliedReceiptNo: Code[50];
     begin
@@ -286,9 +272,6 @@ report 70036 "Taka Voucher Report"
             VoucherID := PosEntryForVoucher."Created by Receipt No.";
             AppliedReceiptNo := PosEntryForVoucher."Applied by Receipt No.";
         end;
-
-        if VoucherID <> '' then
-            LoadExclusions(VoucherID, ExcludedDivisions, ExcludedItems);
 
         if SheetType = SheetType::Used then begin
             if AppliedReceiptNo = '' then
@@ -313,22 +296,20 @@ report 70036 "Taka Voucher Report"
             TransSalesEntry.SetRange("Receipt No.", AppliedReceiptNo);
             if TransSalesEntry.FindSet() then
                 repeat
-                    if not IsLineExcluded(TransSalesEntry, ExcludedDivisions, ExcludedItems) then
-                        if TransSalesEntry.Quantity < 0 then
-                            TotalBillValue += TransSalesEntry."Price";
+                    if TransSalesEntry.Quantity < 0 then
+                        TotalBillValue += TransSalesEntry."Price";
                 until TransSalesEntry.Next() = 0;
 
             TransSalesEntry.Reset();
             TransSalesEntry.SetRange("Receipt No.", AppliedReceiptNo);
             if TransSalesEntry.FindSet() then
                 repeat
-                    if not IsLineExcluded(TransSalesEntry, ExcludedDivisions, ExcludedItems) then
-                        if TransSalesEntry.Quantity < 0 then begin
-                            SpecialGrpCode := GetSpecialGroupCode(TransSalesEntry."Item No.");
+                    if TransSalesEntry.Quantity < 0 then begin
+                        SpecialGrpCode := GetSpecialGroupCode(TransSalesEntry."Item No.");
 
-                            if (SpecialGroupFilter = '') or (SpecialGrpCode = SpecialGroupFilter) then
-                                AddOrUpdateGroupBuffer(TempGroupBuffer, SpecialGrpCode, TransSalesEntry."Price");
-                        end;
+                        if (SpecialGroupFilter = '') or (SpecialGrpCode = SpecialGroupFilter) then
+                            AddOrUpdateGroupBuffer(TempGroupBuffer, SpecialGrpCode, TransSalesEntry."Price");
+                    end;
                 until TransSalesEntry.Next() = 0;
 
             if not TempGroupBuffer.FindFirst() then begin
@@ -383,31 +364,29 @@ report 70036 "Taka Voucher Report"
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
                 if TransSalesEntry.FindFirst() then begin
                     ReceiptNoEntry := Format(TransSalesEntry."Receipt No.");
-                    POSEntry := TransSalesEntry."POS Terminal No.";
+                    POSTerminalEntry := TransSalesEntry."POS Terminal No.";
                     AddTextToList(ReceiptNoList, ReceiptNoEntry);
-                    AddTextToList(POSList, POSEntry);
+                    AddTextToList(POSList, POSTerminalEntry);
                 end;
 
                 TransSalesEntry.Reset();
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
                 if TransSalesEntry.FindSet() then
                     repeat
-                        if not IsLineExcluded(TransSalesEntry, ExcludedDivisions, ExcludedItems) then
-                            if TransSalesEntry.Quantity < 0 then
-                                TotalBillValue += TransSalesEntry."Price";
+                        if TransSalesEntry.Quantity < 0 then
+                            TotalBillValue += TransSalesEntry."Price";
                     until TransSalesEntry.Next() = 0;
 
                 TransSalesEntry.Reset();
                 TransSalesEntry.SetRange("Receipt No.", IssueLogLine2."Document No.");
                 if TransSalesEntry.FindSet() then
                     repeat
-                        if not IsLineExcluded(TransSalesEntry, ExcludedDivisions, ExcludedItems) then
-                            if TransSalesEntry.Quantity < 0 then begin
-                                SpecialGrpCode := GetSpecialGroupCode(TransSalesEntry."Item No.");
+                        if TransSalesEntry.Quantity < 0 then begin
+                            SpecialGrpCode := GetSpecialGroupCode(TransSalesEntry."Item No.");
 
-                                if (SpecialGroupFilter = '') or (SpecialGrpCode = SpecialGroupFilter) then
-                                    AddOrUpdateGroupBuffer(TempGroupBuffer, SpecialGrpCode, TransSalesEntry."Price");
-                            end;
+                            if (SpecialGroupFilter = '') or (SpecialGrpCode = SpecialGroupFilter) then
+                                AddOrUpdateGroupBuffer(TempGroupBuffer, SpecialGrpCode, TransSalesEntry."Price");
+                        end;
                     until TransSalesEntry.Next() = 0;
 
             until IssueLogLine2.Next() = 0;
@@ -522,47 +501,6 @@ report 70036 "Taka Voucher Report"
         until TempGroupBuffer.Next() = 0;
     end;
 
-    local procedure LoadExclusions(
-        VoucherID: Code[20];
-        var ExcludedDivisions: List of [Code[20]];
-        var ExcludedItems: List of [Code[20]])
-    var
-        ItemDiscStp: Record "wpVoucherItemDiscStp";
-    begin
-        Clear(ExcludedDivisions);
-        Clear(ExcludedItems);
-
-        ItemDiscStp.Reset();
-        ItemDiscStp.SetRange("Voucher ID", VoucherID);
-        ItemDiscStp.SetRange("Exclude", true);
-        if not ItemDiscStp.FindSet() then
-            exit;
-
-        repeat
-            case ItemDiscStp.Type of
-                2:
-                    if not ExcludedDivisions.Contains(ItemDiscStp."No.") then
-                        ExcludedDivisions.Add(ItemDiscStp."No.");
-                6:
-                    if not ExcludedItems.Contains(ItemDiscStp."No.") then
-                        ExcludedItems.Add(ItemDiscStp."No.");
-            end;
-        until ItemDiscStp.Next() = 0;
-    end;
-
-    local procedure IsLineExcluded(
-        var TSEntry: Record "LSC Trans. Sales Entry";
-        var ExcludedDivisions: List of [Code[20]];
-        var ExcludedItems: List of [Code[20]]): Boolean
-    begin
-        if ExcludedDivisions.Contains(TSEntry."Division Code") then
-            exit(true);
-
-        if ExcludedItems.Contains(TSEntry."Item No.") then
-            exit(true);
-
-        exit(false);
-    end;
 
     local procedure ApplyLargestRemainder(
         var TempGroupBuffer: Record wpTempVoucherResult temporary;

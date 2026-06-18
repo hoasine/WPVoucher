@@ -24,6 +24,10 @@ tableextension 70018 wpPOSEntryExt extends "LSC POS Data Entry"
         {
             Caption = 'Date Procesed';
         }
+        field(73106; "Is Imported"; Boolean)
+        {
+            Caption = 'Is Imported';
+        }
     }
 
 
