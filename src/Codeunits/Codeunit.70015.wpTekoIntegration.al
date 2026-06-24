@@ -31,6 +31,7 @@ codeunit 70015 "Teko Voucher Integration"
         Store: Record "LSC Store";
         POSTerminal: Record "LSC POS Terminal";
         IsTempMember: Boolean;
+        PosLog: Record "LSC POS Log";
     begin
         if Transaction."Transaction No." = 0 then
             exit;
@@ -130,6 +131,22 @@ codeunit 70015 "Teko Voucher Integration"
         HttpHeaders.Add('Content-Type', 'application/json');
 
         if not HttpClient.Post(BaseUrl + '/api/teko/vouchers/use', HttpContent, HttpResponse) then begin
+
+            POSLog.Init();
+            POSLog."Entry Date" := Transaction."Date";
+            POSLog."Entry Time" := Transaction."Time";
+            POSLog."Store No." := Transaction."Store No.";
+            POSLog."Terminal No." := Transaction."POS Terminal No.";
+            POSLog."Staff ID" := Transaction."Staff ID";
+            POSLog."Receipt No." := Transaction."Receipt No.";
+
+            POSLog.Sequence := 1;
+
+            POSLog.Description := CopyStr('TEKO_FAIL|ID:' + RequestId, 1, MaxStrLen(POSLog.Description));
+
+            POSLog."POS Parameter" := CopyStr(RequestJson, 1, MaxStrLen(POSLog."POS Parameter"));
+
+            POSLog.Insert(true);
         end;
     end;
 
